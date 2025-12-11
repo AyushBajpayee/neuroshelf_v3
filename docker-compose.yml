@@ -1,0 +1,208 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: pricing-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pricing_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pricing_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-pricing_intelligence}
+    ports:
+      - "65432:5432"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pricing_user -d pricing_intelligence"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pricing-network
+
+  # MCP Postgres Server
+  mcp-postgres:
+    build:
+      context: ./mcp-servers/postgres
+      dockerfile: Dockerfile
+    container_name: pricing-mcp-postgres
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-pricing_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-pricing_pass}
+      DB_NAME: ${POSTGRES_DB:-pricing_intelligence}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pricing-network
+
+  # MCP Weather Simulator
+  mcp-weather:
+    build:
+      context: ./mcp-servers/weather-simulator
+      dockerfile: Dockerfile
+    container_name: pricing-mcp-weather
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-pricing_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-pricing_pass}
+      DB_NAME: ${POSTGRES_DB:-pricing_intelligence}
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pricing-network
+
+  # MCP Competitor Pricing Simulator
+  mcp-competitor:
+    build:
+      context: ./mcp-servers/competitor-simulator
+      dockerfile: Dockerfile
+    container_name: pricing-mcp-competitor
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-pricing_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-pricing_pass}
+      DB_NAME: ${POSTGRES_DB:-pricing_intelligence}
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pricing-network
+
+  # MCP Social Media Trends Simulator
+  mcp-social:
+    build:
+      context: ./mcp-servers/social-simulator
+      dockerfile: Dockerfile
+    container_name: pricing-mcp-social
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-pricing_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-pricing_pass}
+      DB_NAME: ${POSTGRES_DB:-pricing_intelligence}
+    ports:
+      - "3003:3003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pricing-network
+
+  # LangGraph Core Agent System
+  langgraph-core:
+    build:
+      context: ./langgraph
+      dockerfile: Dockerfile
+    container_name: pricing-langgraph-core
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-pricing-intelligence-agent}
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-true}
+      MCP_POSTGRES_URL: http://mcp-postgres:3000
+      MCP_WEATHER_URL: http://mcp-weather:3001
+      MCP_COMPETITOR_URL: http://mcp-competitor:3002
+      MCP_SOCIAL_URL: http://mcp-social:3003
+      AGENT_MONITORING_INTERVAL_MINUTES: ${AGENT_MONITORING_INTERVAL_MINUTES:-30}
+      AGENT_MIN_MARGIN_PERCENT: ${AGENT_MIN_MARGIN_PERCENT:-10}
+      AGENT_MAX_DISCOUNT_PERCENT: ${AGENT_MAX_DISCOUNT_PERCENT:-40}
+      AGENT_AUTO_RETRACT_THRESHOLD: ${AGENT_AUTO_RETRACT_THRESHOLD:-0.5}
+      AGENT_REQUIRE_MANUAL_APPROVAL: ${AGENT_REQUIRE_MANUAL_APPROVAL:-false}
+    ports:
+      - "8000:8000"
+    depends_on:
+      mcp-postgres:
+        condition: service_healthy
+      mcp-weather:
+        condition: service_healthy
+      mcp-competitor:
+        condition: service_healthy
+      mcp-social:
+        condition: service_healthy
+    networks:
+      - pricing-network
+
+  # LangGraph Studio Visualization
+  langgraph-studio:
+    build:
+      context: ./langgraph-studio
+      dockerfile: Dockerfile
+    container_name: pricing-langgraph-studio
+    environment:
+      LANGGRAPH_CORE_URL: http://langgraph-core:8000
+    ports:
+      - "8080:8080"
+    depends_on:
+      - langgraph-core
+    networks:
+      - pricing-network
+
+  # Streamlit UI
+  streamlit:
+    build:
+      context: ./streamlit
+      dockerfile: Dockerfile
+    container_name: pricing-streamlit
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-pricing_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-pricing_pass}
+      DB_NAME: ${POSTGRES_DB:-pricing_intelligence}
+      LANGGRAPH_API_URL: http://langgraph-core:8000
+      MCP_WEATHER_URL: http://mcp-weather:3001
+      MCP_COMPETITOR_URL: http://mcp-competitor:3002
+      MCP_SOCIAL_URL: http://mcp-social:3003
+    ports:
+      - "8501:8501"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      langgraph-core:
+        condition: service_started
+    networks:
+      - pricing-network
+
+networks:
+  pricing-network:
+    driver: bridge
+
+volumes:
+  pgdata:
+    driver: local
