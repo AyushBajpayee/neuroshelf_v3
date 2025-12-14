@@ -9,33 +9,26 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-import uvicorn
+# FastAPI imports removed - using FastMCP instead
+# from pydantic import BaseModel  # Not needed anymore
+from mcp.server.fastmcp import FastMCP
+# from fastmcp import FastMCP
 
-# Initialize FastAPI app
-app = FastAPI(title="MCP Postgres Server", version="1.0.0")
+
+# Initialize MCP Server
+mcp = FastMCP("MCP Postgres Server")
 
 # Database configuration
 DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "postgres"),
-    "port": int(os.getenv("DB_PORT", 5432)),
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": int(os.getenv("DB_PORT", "65432")),
     "user": os.getenv("DB_USER", "pricing_user"),
     "password": os.getenv("DB_PASSWORD", "pricing_pass"),
     "database": os.getenv("DB_NAME", "pricing_intelligence"),
 }
 
 
-# Pydantic models
-class ToolRequest(BaseModel):
-    tool_name: str
-    parameters: Dict[str, Any]
-
-
-class ToolResponse(BaseModel):
-    success: bool
-    data: Any
-    error: Optional[str] = None
+# Note: ToolRequest and ToolResponse models removed - FastMCP uses function parameters directly
 
 
 # Database connection helper
@@ -45,75 +38,32 @@ def get_db_connection():
         conn = psycopg2.connect(**DB_CONFIG)
         return conn
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")
+        raise Exception(f"Database connection failed: {e}")
 
 
 # Health check endpoint
-@app.get("/health")
-def health_check():
-    """Health check endpoint"""
+@mcp.tool()
+def health_check() -> dict:
+    """
+    Check PostgreSQL database health status.
+    """
     try:
         conn = get_db_connection()
         conn.close()
         return {"status": "healthy", "service": "mcp-postgres"}
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Service unhealthy: {str(e)}")
+        raise Exception(f"Database health check failed: {e}")
 
 
-# MCP Tool endpoint
-@app.post("/tool", response_model=ToolResponse)
-def execute_tool(request: ToolRequest):
-    """Execute an MCP tool"""
-    tool_name = request.tool_name
-    parameters = request.parameters
-
-    try:
-        if tool_name == "query_inventory_levels":
-            result = query_inventory_levels(**parameters)
-        elif tool_name == "calculate_sell_through_rate":
-            result = calculate_sell_through_rate(**parameters)
-        elif tool_name == "get_pricing_history":
-            result = get_pricing_history(**parameters)
-        elif tool_name == "create_promotion":
-            result = create_promotion(**parameters)
-        elif tool_name == "retract_promotion":
-            result = retract_promotion(**parameters)
-        elif tool_name == "log_performance_metric":
-            result = log_performance_metric(**parameters)
-        elif tool_name == "log_token_usage":
-            result = log_token_usage(**parameters)
-        elif tool_name == "get_cost_summary":
-            result = get_cost_summary(**parameters)
-        elif tool_name == "get_competitor_prices":
-            result = get_competitor_prices(**parameters)
-        elif tool_name == "log_agent_decision":
-            result = log_agent_decision(**parameters)
-        elif tool_name == "get_active_promotions":
-            result = get_active_promotions(**parameters)
-        elif tool_name == "update_promotion_performance":
-            result = update_promotion_performance(**parameters)
-        elif tool_name == "create_pending_promotion":
-            result = create_pending_promotion(**parameters)
-        elif tool_name == "get_pending_promotions":
-            result = get_pending_promotions(**parameters)
-        elif tool_name == "approve_promotion":
-            result = approve_promotion(**parameters)
-        elif tool_name == "reject_promotion":
-            result = reject_promotion(**parameters)
-        else:
-            raise ValueError(f"Unknown tool: {tool_name}")
-
-        return ToolResponse(success=True, data=result)
-
-    except Exception as e:
-        return ToolResponse(success=False, data=None, error=str(e))
+# Note: execute_tool routing function removed - each tool is now a separate @mcp.tool() function
 
 
 # ============================================================================
 # TOOL IMPLEMENTATIONS
 # ============================================================================
 
-def query_inventory_levels(sku_id: int = None, store_id: int = None) -> List[Dict]:
+@mcp.tool()
+def query_inventory_levels(sku_id: Optional[int] = None, store_id: Optional[int] = None) -> List[Dict]:
     """Query current inventory levels"""
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -159,6 +109,7 @@ def query_inventory_levels(sku_id: int = None, store_id: int = None) -> List[Dic
     return [dict(row) for row in results]
 
 
+@mcp.tool()
 def calculate_sell_through_rate(sku_id: int, store_id: int, days: int = 7) -> Dict:
     """Calculate sell-through rate for a SKU at a store"""
     conn = get_db_connection()
@@ -186,7 +137,8 @@ def calculate_sell_through_rate(sku_id: int, store_id: int, days: int = 7) -> Di
     return dict(result) if result else {}
 
 
-def get_pricing_history(sku_id: int, store_id: int = None, limit: int = 10) -> List[Dict]:
+@mcp.tool()
+def get_pricing_history(sku_id: int, store_id: Optional[int] = None, limit: int = 10) -> List[Dict]:
     """Get pricing history for a SKU"""
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -225,6 +177,7 @@ def get_pricing_history(sku_id: int, store_id: int = None, limit: int = 10) -> L
     return [dict(row) for row in results]
 
 
+@mcp.tool()
 def create_promotion(
     sku_id: int,
     store_id: int,
@@ -236,11 +189,11 @@ def create_promotion(
     margin_percent: float,
     valid_from: str,
     valid_until: str,
-    target_radius_km: float = None,
-    target_customer_segment: str = None,
-    expected_units_sold: int = None,
-    expected_revenue: float = None,
-    reason: str = None,
+    target_radius_km: Optional[float] = None,
+    target_customer_segment: Optional[str] = None,
+    expected_units_sold: Optional[int] = None,
+    expected_revenue: Optional[float] = None,
+    reason: Optional[str] = None,
 ) -> Dict:
     """Create a new promotion"""
     conn = get_db_connection()
@@ -294,6 +247,7 @@ def create_promotion(
     return dict(result) if result else {}
 
 
+@mcp.tool()
 def retract_promotion(promotion_id: int, reason: str) -> Dict:
     """Retract an active promotion"""
     conn = get_db_connection()
@@ -318,6 +272,7 @@ def retract_promotion(promotion_id: int, reason: str) -> Dict:
     return dict(result) if result else {}
 
 
+@mcp.tool()
 def log_performance_metric(
     promotion_id: int,
     units_sold_so_far: int,
@@ -325,7 +280,7 @@ def log_performance_metric(
     performance_ratio: float,
     is_profitable: bool,
     margin_maintained: bool,
-    notes: str = None,
+    notes: Optional[str] = None,
 ) -> Dict:
     """Log promotion performance metric"""
     conn = get_db_connection()
@@ -361,6 +316,7 @@ def log_performance_metric(
     return dict(result) if result else {}
 
 
+@mcp.tool()
 def log_token_usage(
     agent_name: str,
     operation: str,
@@ -369,9 +325,9 @@ def log_token_usage(
     completion_tokens: int,
     total_tokens: int,
     estimated_cost: float,
-    sku_id: int = None,
-    promotion_id: int = None,
-    context: Dict = None,
+    sku_id: Optional[int] = None,
+    promotion_id: Optional[int] = None,
+    context: Optional[Dict] = None,
 ) -> Dict:
     """Log token usage and cost"""
     conn = get_db_connection()
@@ -410,8 +366,9 @@ def log_token_usage(
     return dict(result) if result else {}
 
 
+@mcp.tool()
 def get_cost_summary(
-    agent_name: str = None, sku_id: int = None, days: int = 7
+    agent_name: Optional[str] = None, sku_id: Optional[int] = None, days: int = 7
 ) -> Dict:
     """Get cost summary"""
     conn = get_db_connection()
@@ -445,7 +402,8 @@ def get_cost_summary(
     return dict(result) if result else {}
 
 
-def get_competitor_prices(sku_id: int, store_id: int = None) -> List[Dict]:
+@mcp.tool()
+def get_competitor_prices(sku_id: int, store_id: Optional[int] = None) -> List[Dict]:
     """Get latest competitor prices for a SKU"""
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -478,6 +436,7 @@ def get_competitor_prices(sku_id: int, store_id: int = None) -> List[Dict]:
     return [dict(row) for row in results]
 
 
+@mcp.tool()
 def log_agent_decision(
     agent_name: str,
     sku_id: int,
@@ -486,7 +445,7 @@ def log_agent_decision(
     reasoning: str,
     data_used: Dict,
     decision_outcome: str,
-    promotion_id: int = None,
+    promotion_id: Optional[int] = None,
 ) -> Dict:
     """Log agent decision"""
     conn = get_db_connection()
@@ -523,7 +482,8 @@ def log_agent_decision(
     return dict(result) if result else {}
 
 
-def get_active_promotions(store_id: int = None) -> List[Dict]:
+@mcp.tool()
+def get_active_promotions(store_id: Optional[int] = None) -> List[Dict]:
     """Get all active promotions"""
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -547,6 +507,7 @@ def get_active_promotions(store_id: int = None) -> List[Dict]:
     return [dict(row) for row in results]
 
 
+@mcp.tool()
 def update_promotion_performance(
     promotion_id: int, units_sold: int, revenue: float
 ) -> Dict:
@@ -573,6 +534,7 @@ def update_promotion_performance(
     return dict(result) if result else {}
 
 
+@mcp.tool()
 def create_pending_promotion(
     sku_id: int,
     store_id: int,
@@ -585,11 +547,11 @@ def create_pending_promotion(
     proposed_valid_from: str,
     proposed_valid_until: str,
     agent_reasoning: str,
-    target_radius_km: float = None,
-    target_customer_segment: str = None,
-    expected_units_sold: int = None,
-    expected_revenue: float = None,
-    market_data: Dict = None,
+    target_radius_km: Optional[float] = None,
+    target_customer_segment: Optional[str] = None,
+    expected_units_sold: Optional[int] = None,
+    expected_revenue: Optional[float] = None,
+    market_data: Optional[Dict] = None,
 ) -> Dict:
     """Create a pending promotion awaiting manual approval"""
     conn = get_db_connection()
@@ -641,7 +603,8 @@ def create_pending_promotion(
     return dict(result) if result else {}
 
 
-def get_pending_promotions(status: str = "pending", store_id: int = None) -> List[Dict]:
+@mcp.tool()
+def get_pending_promotions(status: str = "pending", store_id: Optional[int] = None) -> List[Dict]:
     """Get pending promotions awaiting approval"""
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -667,10 +630,11 @@ def get_pending_promotions(status: str = "pending", store_id: int = None) -> Lis
     return [dict(row) for row in results]
 
 
+@mcp.tool()
 def approve_promotion(
     pending_promotion_id: int,
     reviewed_by: str,
-    reviewer_notes: str = None,
+    reviewer_notes: Optional[str] = None,
 ) -> Dict:
     """Approve a pending promotion and create an active promotion"""
     conn = get_db_connection()
@@ -763,6 +727,7 @@ def approve_promotion(
     }
 
 
+@mcp.tool()
 def reject_promotion(
     pending_promotion_id: int,
     reviewed_by: str,
@@ -806,4 +771,4 @@ def reject_promotion(
 if __name__ == "__main__":
     print("Starting MCP Postgres Server...")
     print(f"Database: {DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}")
-    uvicorn.run(app, host="0.0.0.0", port=3000)
+    mcp.run()

@@ -3,4 +3,10 @@ name = "neuroshelf-v3"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "anthropic>=0.75.0",
+    "fastapi>=0.124.4",
+    "httpx>=0.28.1",
+    "mcp[cli]>=1.24.0",
+    "psycopg2-binary>=2.9.11",
+]
