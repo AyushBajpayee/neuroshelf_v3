@@ -55,6 +55,7 @@ Respond with JSON:
         llm = ChatOpenAI(
             model=config.OPENAI_CONFIG["model"],
             api_key=config.OPENAI_CONFIG["api_key"],
+            temperature=1.0,
         )
 
         response = llm.invoke([

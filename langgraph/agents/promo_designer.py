@@ -34,11 +34,11 @@ def design_promotion_node(state: dict) -> dict:
         valid_until = valid_from + timedelta(hours=duration_hours)
 
         # Estimate expected sales
-        current_avg_daily = state.get("sell_through_rate", {}).get("avg_daily_sales", 10)
+        current_avg_daily = float(state.get("sell_through_rate", {}).get("avg_daily_sales", 10))
         promotion_multiplier = 2.5 if promo_type == "flash_sale" else 1.5
         expected_units = int(current_avg_daily * promotion_multiplier * (duration_hours / 24))
 
-        promo_price = pricing.get("promotional_price", 5.99)
+        promo_price = float(pricing.get("promotional_price", 5.99))
         expected_revenue = expected_units * promo_price
 
         state["promotion_design"] = {

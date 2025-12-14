@@ -63,23 +63,58 @@ class TokenTracker:
     ):
         """Extract token usage from LLM response and log it"""
         try:
-            # Extract usage from OpenAI response
-            if hasattr(response, "usage"):
+            prompt_tokens = 0
+            completion_tokens = 0
+
+            # Extract usage from OpenAI response - try multiple formats
+            if hasattr(response, "usage_metadata"):
+                # LangChain response format (newer)
+                usage = response.usage_metadata
+                prompt_tokens = usage.get("input_tokens", 0)
+                completion_tokens = usage.get("output_tokens", 0)
+            elif hasattr(response, "response_metadata") and "token_usage" in response.response_metadata:
+                # LangChain AIMessage format with response_metadata
+                usage = response.response_metadata["token_usage"]
+                prompt_tokens = usage.get("prompt_tokens", 0)
+                completion_tokens = usage.get("completion_tokens", 0)
+            elif hasattr(response, "additional_kwargs") and response.additional_kwargs:
+                # Check additional_kwargs for usage info
+                kwargs = response.additional_kwargs
+                if "usage" in kwargs:
+                    usage = kwargs["usage"]
+                    prompt_tokens = usage.get("prompt_tokens", 0)
+                    completion_tokens = usage.get("completion_tokens", 0)
+                else:
+                    print(f"[Token Tracker] Warning: No usage info in additional_kwargs: {kwargs}")
+                    return
+            elif hasattr(response, "usage"):
+                # OpenAI direct response format
                 usage = response.usage
                 prompt_tokens = usage.prompt_tokens
                 completion_tokens = usage.completion_tokens
+            else:
+                print(f"[Token Tracker] Warning: Could not extract token usage from response type {type(response)}")
+                return
 
-                self.log_usage(
-                    agent_name=agent_name,
-                    operation=operation,
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
-                    sku_id=sku_id,
-                    promotion_id=promotion_id,
-                    context=context,
-                )
+            if prompt_tokens == 0 and completion_tokens == 0:
+                print(f"[Token Tracker] Warning: Token counts are zero")
+                return
+
+            print(f"[Token Tracker] Logging: {prompt_tokens} prompt + {completion_tokens} completion tokens")
+
+            self.log_usage(
+                agent_name=agent_name,
+                operation=operation,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                sku_id=sku_id,
+                promotion_id=promotion_id,
+                context=context,
+            )
         except Exception as e:
-            print(f"Error extracting token usage: {e}")
+            print(f"[Token Tracker] Error extracting token usage: {e}")
+            import traceback
+            traceback.print_exc()
 
 
 # Global token tracker instance

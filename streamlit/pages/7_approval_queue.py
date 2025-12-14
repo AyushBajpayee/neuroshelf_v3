@@ -66,7 +66,7 @@ else:
     for idx, promo in enumerate(pending_promotions):
         with st.expander(
             f"🎯 {promo['sku_name']} @ {promo['store_name']} - "
-            f"${promo['promotional_price']:.2f} (ID: {promo['id']})",
+            f"${float(promo['promotional_price']):.2f} (ID: {promo['id']})",
             expanded=(idx == 0 and status_filter == "pending")
         ):
             # Promotion Details
@@ -80,10 +80,10 @@ else:
 
             with col2:
                 st.markdown("**💰 Pricing**")
-                st.write(f"**Original Price:** ${promo['original_price']:.2f}")
-                st.write(f"**Promo Price:** ${promo['promotional_price']:.2f}")
-                st.write(f"**Discount:** ${promo['discount_value']:.2f}")
-                st.write(f"**Margin:** {promo['margin_percent']:.2f}%")
+                st.write(f"**Original Price:** ${float(promo['original_price']):.2f}")
+                st.write(f"**Promo Price:** ${float(promo['promotional_price']):.2f}")
+                st.write(f"**Discount:** ${float(promo['discount_value']):.2f}")
+                st.write(f"**Margin:** {float(promo['margin_percent']):.2f}%")
 
             with col3:
                 st.markdown("**📅 Timing**")
@@ -98,7 +98,7 @@ else:
             with perf_col1:
                 st.metric("Expected Units Sold", promo.get('expected_units_sold', 'N/A'))
             with perf_col2:
-                st.metric("Expected Revenue", f"${promo.get('expected_revenue', 0):.2f}" if promo.get('expected_revenue') else 'N/A')
+                st.metric("Expected Revenue", f"${float(promo.get('expected_revenue', 0)):.2f}" if promo.get('expected_revenue') else 'N/A')
 
             # Agent Reasoning
             st.markdown("**🤖 Agent Reasoning**")
@@ -106,7 +106,8 @@ else:
 
             # Market Data (if available)
             if promo.get('market_data'):
-                with st.expander("📈 View Market Data"):
+                st.markdown("**📈 Market Data**")
+                if st.checkbox("Show Market Data Details", key=f"market_data_{promo['id']}"):
                     try:
                         market_data = json.loads(promo['market_data']) if isinstance(promo['market_data'], str) else promo['market_data']
                         st.json(market_data)

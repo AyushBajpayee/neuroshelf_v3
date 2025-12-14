@@ -163,14 +163,15 @@ async def root():
         <script>
             async function updateStatus() {
                 try {
-                    const response = await fetch('http://localhost:8000/status');
+                    const response = await fetch('/api/status');
                     const data = await response.json();
 
                     document.getElementById('status').textContent = data.agent_running ? '🟢 Running' : '🔴 Stopped';
                     document.getElementById('lastRun').textContent = data.last_run || 'Never';
                     document.getElementById('cycles').textContent = data.cycles_completed || 0;
                 } catch (error) {
-                    document.getElementById('status').textContent = '🟡 Unknown';
+                    console.error('Status fetch error:', error);
+                    document.getElementById('status').textContent = '🟡 Unknown - ' + error.message;
                 }
             }
 
@@ -187,6 +188,17 @@ async def root():
 def health_check():
     """Health check"""
     return {"status": "healthy", "service": "langgraph-studio"}
+
+
+@app.get("/api/status")
+async def get_agent_status():
+    """Proxy status request to langgraph-core"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{LANGGRAPH_CORE_URL}/status", timeout=5.0)
+            return response.json()
+    except Exception as e:
+        return {"agent_running": False, "error": str(e)}
 
 
 if __name__ == "__main__":

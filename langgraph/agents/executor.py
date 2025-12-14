@@ -46,6 +46,9 @@ def execute_promotion_node(state: dict) -> dict:
                 },
             )
 
+            if not pending_result:
+                raise Exception("Failed to create pending promotion - MCP call returned None")
+
             print(f"  [Executor] Promotion saved to pending_promotions (ID: {pending_result.get('id')})")
 
             state["execution_result"] = {

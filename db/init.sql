@@ -380,6 +380,7 @@ SELECT
     st.store_code,
     st.name AS store_name,
     pp.promotion_type,
+    pp.discount_type,
     pp.promotional_price,
     pp.original_price,
     pp.discount_value,
@@ -389,13 +390,16 @@ SELECT
     pp.proposed_valid_from,
     pp.proposed_valid_until,
     pp.agent_reasoning,
+    pp.market_data,
     pp.status,
+    pp.reviewed_by,
+    pp.reviewed_at,
+    pp.reviewer_notes,
     pp.created_at,
     EXTRACT(EPOCH FROM (NOW() - pp.created_at))/3600 AS hours_pending
 FROM pending_promotions pp
 JOIN skus s ON pp.sku_id = s.id
 JOIN stores st ON pp.store_id = st.id
-WHERE pp.status = 'pending'
 ORDER BY pp.created_at DESC;
 
 -- ============================================================================

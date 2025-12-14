@@ -63,6 +63,7 @@ Respond with JSON:
         llm = ChatOpenAI(
             model=config.OPENAI_CONFIG["model"],
             api_key=config.OPENAI_CONFIG["api_key"],
+            temperature=1.0,
         )
 
         messages = [
@@ -71,6 +72,10 @@ Respond with JSON:
         ]
 
         response = llm.invoke(messages)
+
+        # Debug: Check response structure
+        print(f"[Market Analyzer] Debug: response.__dict__.keys() = {list(response.__dict__.keys())}")
+        print(f"[Market Analyzer] Debug: additional_kwargs = {response.additional_kwargs}")
 
         # Log token usage
         token_tracker.extract_and_log(
