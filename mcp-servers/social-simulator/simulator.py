@@ -10,6 +10,7 @@ import config
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import json
 
 
 class SocialSimulator:
@@ -30,6 +31,98 @@ class SocialSimulator:
     def get_db_connection(self):
         """Get database connection"""
         return psycopg2.connect(**self.db_config)
+
+    def write_trend_to_db(self, trend: Dict[str, Any]) -> bool:
+        """Write trend data to external_factors table"""
+        try:
+            conn = self.get_db_connection()
+            cursor = conn.cursor()
+
+            # Prepare factor_value JSON
+            factor_value = {
+                "platform": trend["platform"],
+                "category": trend["category"],
+                "sentiment_score": trend["sentiment_score"],
+                "sentiment_type": trend["sentiment_type"],
+                "mentions": trend["mentions"],
+                "related_skus": trend["related_skus"],
+                "is_viral": trend["is_viral"]
+            }
+
+            query = """
+                INSERT INTO external_factors
+                (factor_type, factor_name, store_id, factor_value, intensity, start_date, end_date)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+
+            cursor.execute(query, (
+                "trend",
+                trend["name"],
+                None,  # Trends are not store-specific
+                json.dumps(factor_value),
+                trend["intensity"],
+                trend["start_time"],
+                trend["end_time"]
+            ))
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return True
+
+        except Exception as e:
+            print(f"Error writing trend to DB: {e}")
+            return False
+
+    def write_event_to_db(self, event: Dict[str, Any]) -> bool:
+        """Write event data to external_factors table"""
+        try:
+            conn = self.get_db_connection()
+            cursor = conn.cursor()
+
+            # Prepare factor_value JSON
+            factor_value = {
+                "event_type": event["event_type"],
+                "expected_attendance": event["expected_attendance"],
+                "impact_categories": event["impact_categories"],
+                "location_id": event["location_id"]
+            }
+
+            # Calculate intensity based on attendance
+            attendance = event["expected_attendance"]
+            if attendance >= 5000:
+                intensity = 85
+            elif attendance >= 2000:
+                intensity = 70
+            elif attendance >= 1000:
+                intensity = 60
+            else:
+                intensity = 50
+
+            query = """
+                INSERT INTO external_factors
+                (factor_type, factor_name, store_id, factor_value, intensity, start_date, end_date)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+
+            cursor.execute(query, (
+                "event",
+                event["name"],
+                event["location_id"],
+                json.dumps(factor_value),
+                intensity,
+                event["start_time"],
+                event["end_time"]
+            ))
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return True
+
+        except Exception as e:
+            print(f"Error writing event to DB: {e}")
+            return False
 
     def _initialize_trends(self):
         """Initialize with some active trends"""
@@ -78,6 +171,10 @@ class SocialSimulator:
         }
 
         self.active_trends.append(trend)
+
+        # Write to database
+        self.write_trend_to_db(trend)
+
         return trend
 
     def _generate_new_event(self, location_id: Optional[int] = None) -> Dict[str, Any]:
@@ -110,6 +207,10 @@ class SocialSimulator:
         }
 
         self.scheduled_events.append(event)
+
+        # Write to database
+        self.write_event_to_db(event)
+
         return event
 
     def get_trending_topics(
@@ -256,6 +357,9 @@ class SocialSimulator:
         self.active_trends.append(viral_trend)
         self.forced_virals.append(viral_trend["id"])
 
+        # Write to database
+        self.write_trend_to_db(viral_trend)
+
         return {
             "topic": topic,
             "intensity": intensity,
@@ -296,6 +400,9 @@ class SocialSimulator:
         }
 
         self.scheduled_events.append(event)
+
+        # Write to database
+        self.write_event_to_db(event)
 
         return {
             "event_name": event_name,

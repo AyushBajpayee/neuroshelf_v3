@@ -8,12 +8,93 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 import config
 import math
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import json
 
 
 class WeatherSimulator:
     def __init__(self):
         self.state = {}
         self.forced_scenarios = {}  # Manual scenario overrides
+        self.db_config = {
+            "host": os.getenv("DB_HOST", "postgres"),
+            "port": int(os.getenv("DB_PORT", 5432)),
+            "user": os.getenv("DB_USER", "pricing_user"),
+            "password": os.getenv("DB_PASSWORD", "pricing_pass"),
+            "database": os.getenv("DB_NAME", "pricing_intelligence"),
+        }
+
+    def get_db_connection(self):
+        """Get database connection"""
+        return psycopg2.connect(**self.db_config)
+
+    def write_to_db(self, weather_data: Dict[str, Any]) -> bool:
+        """Write weather data to external_factors table"""
+        try:
+            conn = self.get_db_connection()
+            cursor = conn.cursor()
+
+            # Prepare factor_value JSON
+            factor_value = {
+                "temperature_celsius": weather_data["temperature_celsius"],
+                "temperature_fahrenheit": weather_data["temperature_fahrenheit"],
+                "condition": weather_data["condition"],
+                "humidity_percent": weather_data["humidity_percent"],
+                "season": weather_data["season"],
+                "is_extreme": weather_data["is_extreme"]
+            }
+
+            # Determine intensity based on temperature extremes
+            temp = weather_data["temperature_celsius"]
+            if temp >= 35:
+                intensity = 90
+            elif temp >= 30:
+                intensity = 75
+            elif temp <= 0:
+                intensity = 85
+            elif temp <= 5:
+                intensity = 70
+            else:
+                intensity = 50
+
+            # Determine factor name based on condition and temperature
+            if weather_data["is_extreme"]:
+                if temp >= 35:
+                    factor_name = "Extreme Heat"
+                elif temp <= 0:
+                    factor_name = "Extreme Cold"
+                else:
+                    factor_name = f"{weather_data['condition'].title()} Weather"
+            else:
+                factor_name = f"{weather_data['condition'].title()} Weather"
+
+            # Insert into external_factors table
+            query = """
+                INSERT INTO external_factors
+                (factor_type, factor_name, store_id, factor_value, intensity, start_date, end_date)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+
+            cursor.execute(query, (
+                "weather",
+                factor_name,
+                weather_data.get("location_id"),
+                json.dumps(factor_value),
+                intensity,
+                datetime.now(),
+                datetime.now() + timedelta(hours=1)  # Weather data valid for 1 hour
+            ))
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return True
+
+        except Exception as e:
+            print(f"Error writing weather data to DB: {e}")
+            return False
 
     def get_current_season(self) -> str:
         """Determine current season based on date"""
@@ -93,7 +174,7 @@ class WeatherSimulator:
         condition = self.determine_condition(temperature)
         humidity = self.get_humidity(condition)
 
-        return {
+        weather_data = {
             "location_id": location_id,
             "temperature_celsius": temperature,
             "temperature_fahrenheit": round(temperature * 9 / 5 + 32, 1),
@@ -104,6 +185,11 @@ class WeatherSimulator:
             "is_extreme": temperature >= config.HEATWAVE_THRESHOLD
             or temperature <= config.COLD_SNAP_THRESHOLD,
         }
+
+        # Write to database
+        self.write_to_db(weather_data)
+
+        return weather_data
 
     def get_weather_forecast(
         self, location_id: int, hours_ahead: int
