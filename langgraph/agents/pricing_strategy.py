@@ -6,6 +6,7 @@ Calculates optimal pricing strategy
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 import config
+import tiktoken
 from token_tracker import token_tracker
 
 
@@ -58,17 +59,33 @@ Respond with JSON:
             temperature=1.0,
         )
 
+        system_messsage = "You are a pricing strategy expert. Calculate optimal prices with margin safety."
         response = llm.invoke([
-            SystemMessage(content="You are a pricing strategy expert. Calculate optimal prices with margin safety."),
+            SystemMessage(content=system_messsage),
             HumanMessage(content=prompt),
         ])
-
-        token_tracker.extract_and_log(
-            response,
+        encoding = tiktoken.get_encoding("cl100k_base")
+        input_text = system_messsage + prompt
+        output_text = response.content
+        input_token = len(encoding.encode(input_text))
+        output_token = len(encoding.encode(output_text))
+        print(f"Input token count: {input_token}, Output token count: {output_token}")
+        print('Logging token usage...')
+        token_tracker.log_usage(
             agent_name="Pricing Strategy Agent",
             operation="calculate_optimal_price",
+            prompt_tokens=input_token,
+            completion_tokens=output_token,
             sku_id=state["sku_id"],
+            context={"store_id": state["store_id"]}
         )
+        print(f'Token usage logged for Pricing Strategy Agent.')
+        # token_tracker.extract_and_log(
+        #     response,
+        #     agent_name="Pricing Strategy Agent",
+        #     operation="calculate_optimal_price",
+        #     sku_id=state["sku_id"],
+        # )
 
         # Simple parsing (in production, use robust JSON parsing)
         # For demo, calculate reasonable price
@@ -91,10 +108,11 @@ Respond with JSON:
         }
 
         print(f"  [Pricing Strategy] Price: ${target_price:.2f} (Margin: {margin:.1f}%)")
-
+        print('Passing State from Pricing Strategy Agent to next ->', state)
         return state
 
     except Exception as e:
         print(f"  [Pricing Strategy] Error: {e}")
         state["error"] = str(e)
+        print('Passing State from Pricing Strategy Agent to next ->', state)
         return state

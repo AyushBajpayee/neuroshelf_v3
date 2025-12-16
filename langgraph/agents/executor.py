@@ -71,7 +71,7 @@ def execute_promotion_node(state: dict) -> dict:
                     "decision_outcome": "pending_approval",
                 },
             )
-
+            print('Final State from executor Agent ->', state)
             return state
 
         # Create promotion in database
@@ -120,10 +120,11 @@ def execute_promotion_node(state: dict) -> dict:
         )
 
         print(f"  [Executor] Promotion {result.get('promotion_code')} ACTIVE")
-
+        print('Final State from executor Agent post executing->', state)
         return state
 
     except Exception as e:
         print(f"  [Executor] Error: {e}")
         state["error"] = str(e)
+        print('Final State from executor Agent ->', state)
         return state

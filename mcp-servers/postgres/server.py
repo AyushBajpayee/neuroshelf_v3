@@ -18,11 +18,11 @@ app = FastAPI(title="MCP Postgres Server", version="1.0.0")
 
 # Database configuration
 DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "postgres"),
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "user": os.getenv("DB_USER", "pricing_user"),
-    "password": os.getenv("DB_PASSWORD", "pricing_pass"),
-    "database": os.getenv("DB_NAME", "pricing_intelligence"),
+    "host": os.getenv("POSTGRES_HOST", "postgres"),
+    "port": int(os.getenv("POSTGRES_PORT", 5432)),
+    "user": os.getenv("POSTGRES_USER", "pricing_user"),
+    "password": os.getenv("POSTGRES_PASSWORD", "pricing_pass"),
+    "database": os.getenv("POSTGRES_DB", "pricing_intelligence"),
 }
 
 
@@ -364,13 +364,11 @@ def log_performance_metric(
 def log_token_usage(
     agent_name: str,
     operation: str,
-    model: str,
     prompt_tokens: int,
     completion_tokens: int,
     total_tokens: int,
     estimated_cost: float,
     sku_id: int = None,
-    promotion_id: int = None,
     context: Dict = None,
 ) -> Dict:
     """Log token usage and cost"""
@@ -379,9 +377,9 @@ def log_token_usage(
 
     query = """
         INSERT INTO token_usage (
-            agent_name, operation, model, prompt_tokens, completion_tokens,
-            total_tokens, estimated_cost, sku_id, promotion_id, context
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            agent_name, operation, prompt_tokens, completion_tokens,
+            total_tokens, estimated_cost, sku_id, context
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id, timestamp
     """
 
@@ -390,13 +388,11 @@ def log_token_usage(
         (
             agent_name,
             operation,
-            model,
             prompt_tokens,
             completion_tokens,
             total_tokens,
             estimated_cost,
             sku_id,
-            promotion_id,
             json.dumps(context) if context else None,
         ),
     )

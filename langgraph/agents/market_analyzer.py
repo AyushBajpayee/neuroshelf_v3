@@ -8,6 +8,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 import config
 from token_tracker import token_tracker
 from mcp_client import mcp_client
+import tiktoken
 
 
 def analyze_market_node(state: dict) -> dict:
@@ -58,6 +59,7 @@ Respond with JSON:
     "key_factors": ["factor1", "factor2"]
 }}
 """
+        system_message = "You are an expert market analyst for retail pricing. Analyze data and make decisions."
 
         # Call LLM
         llm = ChatOpenAI(
@@ -67,24 +69,36 @@ Respond with JSON:
         )
 
         messages = [
-            SystemMessage(content="You are an expert market analyst for retail pricing. Analyze data and make decisions."),
+            SystemMessage(content=system_message),
             HumanMessage(content=analysis_prompt),
         ]
 
         response = llm.invoke(messages)
-
-        # Debug: Check response structure
-        print(f"[Market Analyzer] Debug: response.__dict__.keys() = {list(response.__dict__.keys())}")
-        print(f"[Market Analyzer] Debug: additional_kwargs = {response.additional_kwargs}")
-
+        # print(f"  [Market Analyzer] LLM Response: {response}")
         # Log token usage
-        token_tracker.extract_and_log(
-            response,
+        encoding = tiktoken.get_encoding("cl100k_base")
+        input_text = system_message + analysis_prompt
+        output_text = response.content
+        input_token = len(encoding.encode(input_text))
+        output_token = len(encoding.encode(output_text))
+        print(f"Input token count: {input_token}, Output token count: {output_token}")
+        print('Logging token usage...')
+        token_tracker.log_usage(
             agent_name="Market Analysis Agent",
             operation="analyze_market_conditions",
+            prompt_tokens=input_token,
+            completion_tokens=output_token,
             sku_id=state["sku_id"],
-            context={"store_id": state["store_id"]},
+            context={"store_id": state["store_id"]}
         )
+        print(f'Token usage logged for market analysis agent.')
+        # token_tracker.extract_and_log(
+        #     response,
+        #     agent_name="Market Analysis Agent",
+        #     operation="analyze_market_conditions",
+        #     sku_id=state["sku_id"],
+        #     context={"store_id": state["store_id"]},
+        # )
 
         # Parse response (simplified - in production use JSON parsing)
         should_act = "true" in response.content.lower() and "should_act" in response.content.lower()
@@ -115,13 +129,14 @@ Respond with JSON:
         )
 
         print(f"  [Market Analyzer] Decision: {'ACT' if should_act else 'NO ACTION'}")
-
+        print('Passing State from Market Analyzer Agent to next ->', state)
         return state
 
     except Exception as e:
         print(f"  [Market Analyzer] Error: {e}")
         state["error"] = str(e)
         state["should_act"] = False
+        print('Passing State from Market Analyzer Agent to next ->', state)
         return state
 
 

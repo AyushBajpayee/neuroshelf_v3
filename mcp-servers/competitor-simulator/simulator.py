@@ -89,6 +89,36 @@ class CompetitorSimulator:
             "strategy": competitor_config["strategy"],
         }
 
+    def write_to_db(self, price_data: Dict[str, Any]) -> bool:
+        """Write competitor price data to competitor_prices table"""
+        try:
+            conn = self.get_db_connection()
+            cursor = conn.cursor()
+
+            query = """
+                INSERT INTO competitor_prices
+                (competitor_name, sku_id, store_id, competitor_price, competitor_promotion, observed_date)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """
+
+            cursor.execute(query, (
+                price_data["competitor_name"],
+                price_data["sku_id"],
+                price_data["location_id"],
+                price_data["price"],
+                price_data["promotion"],
+                datetime.now()
+            ))
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return True
+
+        except Exception as e:
+            print(f"Error writing competitor price to DB: {e}")
+            return False
+
     def get_competitor_prices(
         self, sku_id: int, location_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
@@ -103,6 +133,9 @@ class CompetitorSimulator:
             price_data["sku_id"] = sku_id
             price_data["location_id"] = location_id
             price_data["timestamp"] = datetime.now().isoformat()
+
+            # Write to database
+            self.write_to_db(price_data)
 
             prices.append(price_data)
 

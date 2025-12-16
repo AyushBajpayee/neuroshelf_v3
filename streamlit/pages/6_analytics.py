@@ -90,41 +90,41 @@ try:
     st.markdown("---")
 
     # Promotion ROI
-    st.subheader("Promotion ROI Analysis")
-    cursor.execute("""
-        SELECT
-            p.promotion_code,
-            s.name as sku,
-            p.actual_revenue,
-            COALESCE(SUM(t.estimated_cost), 0) as agent_cost,
-            p.actual_revenue - COALESCE(SUM(t.estimated_cost), 0) as net_revenue,
-            CASE
-                WHEN COALESCE(SUM(t.estimated_cost), 0) > 0
-                THEN ROUND((p.actual_revenue - COALESCE(SUM(t.estimated_cost), 0)) / SUM(t.estimated_cost), 2)
-                ELSE 0
-            END as roi_ratio
-        FROM promotions p
-        JOIN skus s ON p.sku_id = s.id
-        LEFT JOIN token_usage t ON p.id = t.promotion_id
-        WHERE p.status IN ('completed', 'retracted')
-        GROUP BY p.id, p.promotion_code, s.name, p.actual_revenue
-        ORDER BY roi_ratio DESC
-        LIMIT 15
-    """)
-    roi_data = cursor.fetchall()
+    # st.subheader("Promotion ROI Analysis")
+    # cursor.execute("""
+    #     SELECT
+    #         p.promotion_code,
+    #         s.name as sku,
+    #         p.actual_revenue,
+    #         COALESCE(SUM(t.estimated_cost), 0) as agent_cost,
+    #         p.actual_revenue - COALESCE(SUM(t.estimated_cost), 0) as net_revenue,
+    #         CASE
+    #             WHEN COALESCE(SUM(t.estimated_cost), 0) > 0
+    #             THEN ROUND((p.actual_revenue - COALESCE(SUM(t.estimated_cost), 0)) / SUM(t.estimated_cost), 2)
+    #             ELSE 0
+    #         END as roi_ratio
+    #     FROM promotions p
+    #     JOIN skus s ON p.sku_id = s.id
+    #     LEFT JOIN token_usage t ON p.id = t.promotion_id
+    #     WHERE p.status IN ('completed', 'retracted')
+    #     GROUP BY p.id, p.promotion_code, s.name, p.actual_revenue
+    #     ORDER BY roi_ratio DESC
+    #     LIMIT 15
+    # """)
+    # roi_data = cursor.fetchall()
 
-    if roi_data:
-        df = pd.DataFrame(roi_data, columns=["Code", "SKU", "Revenue", "Agent Cost", "Net Revenue", "ROI Ratio"])
-        st.dataframe(df, use_container_width=True)
+    # if roi_data:
+    #     df = pd.DataFrame(roi_data, columns=["Code", "SKU", "Revenue", "Agent Cost", "Net Revenue", "ROI Ratio"])
+    #     st.dataframe(df, use_container_width=True)
 
-        # ROI Chart
-        fig = px.bar(df, x="Code", y="ROI Ratio", title="Promotion ROI (Revenue/Cost Ratio)")
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No ROI data available yet")
+    #     # ROI Chart
+    #     fig = px.bar(df, x="Code", y="ROI Ratio", title="Promotion ROI (Revenue/Cost Ratio)")
+    #     st.plotly_chart(fig, use_container_width=True)
+    # else:
+    #     st.info("No ROI data available yet")
 
-    cursor.close()
-    conn.close()
+    # cursor.close()
+    # conn.close()
 
 except Exception as e:
     st.error(f"Error: {e}")
