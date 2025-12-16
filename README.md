@@ -202,7 +202,7 @@ If you need to connect external tools to Postgres:
 
 ```
 Host: localhost
-Port: 95432
+Port: 65432
 Database: pricing_intelligence
 User: pricing_user
 Password: pricing_pass

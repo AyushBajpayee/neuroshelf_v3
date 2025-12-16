@@ -213,7 +213,7 @@ neuroshelf_v3/
 - **PostgreSQL 16**: Relational database
 - **LangChain**: LLM framework
 - **LangGraph**: Agent orchestration
-- **OpenAI GPT-4o-mini**: Language model
+- **OpenAI GPT-5-mini**: Language model
 
 ### Frontend
 - **Streamlit**: Python-based web UI
