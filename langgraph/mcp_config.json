@@ -1,0 +1,21 @@
+{
+    "mcpServers": {
+      "competitor_simulator": {
+        "command": "python",
+        "args": ["mcp-servers/competitor-simulator/server.py"]
+      },
+      "postgres": {
+        "command": "python",
+        "args": ["mcp-servers/postgres/server.py"]
+      },
+      "social-simulator": {
+        "command": "python",
+        "args": ["mcp-servers/social-simulator/server.py"]
+      },
+      "weather-simulator": {
+        "command": "python",
+        "args": ["mcp-servers/weather-simulator/server.py"]
+      }
+    }
+  }
+  

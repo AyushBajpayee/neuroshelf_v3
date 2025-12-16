@@ -2,7 +2,7 @@
 MCP Server for Competitor Pricing Simulation
 Provides realistic competitor pricing data
 """
-
+import asyncio
 from typing import Dict, Any, List, Optional
 from mcp.server.fastmcp import FastMCP
 from simulator import competitor_sim
@@ -117,6 +117,7 @@ def get_simulator_state() -> Dict:
 # ============================================================================
 
 if __name__ == "__main__":
-    print("Starting MCP Competitor Pricing Simulator...")
-    print(f"Configured competitors: {list(competitor_sim.get_state()['competitors'].keys())}")
-    mcp.run()
+    # print("Starting MCP Competitor Pricing Simulator...")
+    # print(f"Configured competitors: {list(competitor_sim.get_state()['competitors'].keys())}")
+    asyncio.run(mcp.run())
+
