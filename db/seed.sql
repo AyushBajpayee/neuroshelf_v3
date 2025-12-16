@@ -213,167 +213,167 @@ INSERT INTO external_factors (factor_type, factor_name, store_id, factor_value, 
 -- ============================================================================
 
 -- Successful Flash Sale Example
-INSERT INTO promotions (
-    promotion_code, sku_id, store_id, promotion_type, discount_type, discount_value,
-    original_price, promotional_price, margin_percent, target_radius_km,
-    valid_from, valid_until, status, expected_units_sold, expected_revenue,
-    actual_units_sold, actual_revenue, created_by, reason
-) VALUES (
-    'PROMO-FLASH-001',
-    (SELECT id FROM skus WHERE sku_code = 'ICECREAM-VANILLA-001'),
-    1,
-    'flash_sale',
-    'percentage',
-    30.00,
-    6.99,
-    4.89,
-    18.50,
-    5.0,
-    CURRENT_TIMESTAMP - INTERVAL '10 days',
-    CURRENT_TIMESTAMP - INTERVAL '10 days' + INTERVAL '2 hours',
-    'completed',
-    80,
-    391.20,
-    95,
-    464.55,
-    'agent',
-    'High temperature forecasted, excess inventory, competitive pricing pressure'
-);
+-- INSERT INTO promotions (
+--     promotion_code, sku_id, store_id, promotion_type, discount_type, discount_value,
+--     original_price, promotional_price, margin_percent, target_radius_km,
+--     valid_from, valid_until, status, expected_units_sold, expected_revenue,
+--     actual_units_sold, actual_revenue, created_by, reason
+-- ) VALUES (
+--     'PROMO-FLASH-001',
+--     (SELECT id FROM skus WHERE sku_code = 'ICECREAM-VANILLA-001'),
+--     1,
+--     'flash_sale',
+--     'percentage',
+--     30.00,
+--     6.99,
+--     4.89,
+--     18.50,
+--     5.0,
+--     CURRENT_TIMESTAMP - INTERVAL '10 days',
+--     CURRENT_TIMESTAMP - INTERVAL '10 days' + INTERVAL '2 hours',
+--     'completed',
+--     80,
+--     391.20,
+--     95,
+--     464.55,
+--     'agent',
+--     'High temperature forecasted, excess inventory, competitive pricing pressure'
+-- );
 
 -- Moderately Successful Coupon
-INSERT INTO promotions (
-    promotion_code, sku_id, store_id, promotion_type, discount_type, discount_value,
-    original_price, promotional_price, margin_percent, target_radius_km,
-    valid_from, valid_until, status, expected_units_sold, expected_revenue,
-    actual_units_sold, actual_revenue, created_by, reason
-) VALUES (
-    'PROMO-COUPON-001',
-    (SELECT id FROM skus WHERE sku_code = 'SODA-COLA-001'),
-    2,
-    'coupon',
-    'percentage',
-    20.00,
-    2.99,
-    2.39,
-    20.00,
-    10.0,
-    CURRENT_TIMESTAMP - INTERVAL '7 days',
-    CURRENT_TIMESTAMP - INTERVAL '7 days' + INTERVAL '4 hours',
-    'completed',
-    120,
-    286.80,
-    98,
-    234.22,
-    'agent',
-    'Moderate inventory, local event nearby, competitor promotion active'
-);
+-- INSERT INTO promotions (
+--     promotion_code, sku_id, store_id, promotion_type, discount_type, discount_value,
+--     original_price, promotional_price, margin_percent, target_radius_km,
+--     valid_from, valid_until, status, expected_units_sold, expected_revenue,
+--     actual_units_sold, actual_revenue, created_by, reason
+-- ) VALUES (
+--     'PROMO-COUPON-001',
+--     (SELECT id FROM skus WHERE sku_code = 'SODA-COLA-001'),
+--     2,
+--     'coupon',
+--     'percentage',
+--     20.00,
+--     2.99,
+--     2.39,
+--     20.00,
+--     10.0,
+--     CURRENT_TIMESTAMP - INTERVAL '7 days',
+--     CURRENT_TIMESTAMP - INTERVAL '7 days' + INTERVAL '4 hours',
+--     'completed',
+--     120,
+--     286.80,
+--     98,
+--     234.22,
+--     'agent',
+--     'Moderate inventory, local event nearby, competitor promotion active'
+-- );
 
 -- Retracted Promotion (Margin Too Low)
-INSERT INTO promotions (
-    promotion_code, sku_id, store_id, promotion_type, discount_type, discount_value,
-    original_price, promotional_price, margin_percent, target_radius_km,
-    valid_from, valid_until, status, expected_units_sold, expected_revenue,
-    actual_units_sold, actual_revenue, created_by, reason, retraction_reason, retracted_at
-) VALUES (
-    'PROMO-RETRACT-001',
-    (SELECT id FROM skus WHERE sku_code = 'CHIPS-SALT-001'),
-    3,
-    'discount',
-    'percentage',
-    40.00,
-    3.49,
-    2.09,
-    8.50,
-    3.0,
-    CURRENT_TIMESTAMP - INTERVAL '5 days',
-    CURRENT_TIMESTAMP - INTERVAL '5 days' + INTERVAL '6 hours',
-    'retracted',
-    150,
-    313.50,
-    15,
-    31.35,
-    'agent',
-    'Testing aggressive discount strategy',
-    'Performance below threshold (10% of expected), margin dangerously low',
-    CURRENT_TIMESTAMP - INTERVAL '5 days' + INTERVAL '1 hour'
-);
+-- INSERT INTO promotions (
+--     promotion_code, sku_id, store_id, promotion_type, discount_type, discount_value,
+--     original_price, promotional_price, margin_percent, target_radius_km,
+--     valid_from, valid_until, status, expected_units_sold, expected_revenue,
+--     actual_units_sold, actual_revenue, created_by, reason, retraction_reason, retracted_at
+-- ) VALUES (
+--     'PROMO-RETRACT-001',
+--     (SELECT id FROM skus WHERE sku_code = 'CHIPS-SALT-001'),
+--     3,
+--     'discount',
+--     'percentage',
+--     40.00,
+--     3.49,
+--     2.09,
+--     8.50,
+--     3.0,
+--     CURRENT_TIMESTAMP - INTERVAL '5 days',
+--     CURRENT_TIMESTAMP - INTERVAL '5 days' + INTERVAL '6 hours',
+--     'retracted',
+--     150,
+--     313.50,
+--     15,
+--     31.35,
+--     'agent',
+--     'Testing aggressive discount strategy',
+--     'Performance below threshold (10% of expected), margin dangerously low',
+--     CURRENT_TIMESTAMP - INTERVAL '5 days' + INTERVAL '1 hour'
+-- );
 
 -- ============================================================================
 -- PROMOTION PERFORMANCE LOGS
 -- ============================================================================
 
-INSERT INTO promotion_performance (promotion_id, check_time, units_sold_so_far, revenue_so_far, performance_ratio, is_profitable, margin_maintained, notes)
-SELECT
-    id,
-    valid_from + INTERVAL '30 minutes',
-    FLOOR(actual_units_sold * 0.3),
-    ROUND((actual_revenue * 0.3)::NUMERIC, 2),
-    0.30,
-    TRUE,
-    TRUE,
-    'First check - 30 minutes in'
-FROM promotions WHERE status = 'completed' AND promotion_code = 'PROMO-FLASH-001';
+-- INSERT INTO promotion_performance (promotion_id, check_time, units_sold_so_far, revenue_so_far, performance_ratio, is_profitable, margin_maintained, notes)
+-- SELECT
+--     id,
+--     valid_from + INTERVAL '30 minutes',
+--     FLOOR(actual_units_sold * 0.3),
+--     ROUND((actual_revenue * 0.3)::NUMERIC, 2),
+--     0.30,
+--     TRUE,
+--     TRUE,
+--     'First check - 30 minutes in'
+-- FROM promotions WHERE status = 'completed' AND promotion_code = 'PROMO-FLASH-001';
 
-INSERT INTO promotion_performance (promotion_id, check_time, units_sold_so_far, revenue_so_far, performance_ratio, is_profitable, margin_maintained, notes)
-SELECT
-    id,
-    valid_from + INTERVAL '1 hour',
-    FLOOR(actual_units_sold * 0.65),
-    ROUND((actual_revenue * 0.65)::NUMERIC, 2),
-    0.65,
-    TRUE,
-    TRUE,
-    'Second check - 1 hour in, exceeding expectations'
-FROM promotions WHERE status = 'completed' AND promotion_code = 'PROMO-FLASH-001';
+-- INSERT INTO promotion_performance (promotion_id, check_time, units_sold_so_far, revenue_so_far, performance_ratio, is_profitable, margin_maintained, notes)
+-- SELECT
+--     id,
+--     valid_from + INTERVAL '1 hour',
+--     FLOOR(actual_units_sold * 0.65),
+--     ROUND((actual_revenue * 0.65)::NUMERIC, 2),
+--     0.65,
+--     TRUE,
+--     TRUE,
+--     'Second check - 1 hour in, exceeding expectations'
+-- FROM promotions WHERE status = 'completed' AND promotion_code = 'PROMO-FLASH-001';
 
 -- ============================================================================
 -- AGENT DECISION LOG (Sample Historical Decisions)
 -- ============================================================================
 
-INSERT INTO agent_decisions (agent_name, sku_id, store_id, decision_type, reasoning, data_used, decision_outcome, promotion_id)
-VALUES
-(
-    'Market Analysis Agent',
-    (SELECT id FROM skus WHERE sku_code = 'ICECREAM-VANILLA-001'),
-    1,
-    'create_promotion',
-    'Detected strong opportunity: High temperature (32°C), excess inventory (850 units vs 600 capacity target), competitor running promotion, trending social topic related to ice cream. Recommend aggressive 2-hour flash sale to capitalize on demand spike.',
-    '{"inventory": 850, "sell_through_7d": 45, "weather_temp": 32, "competitor_lowest_price": 5.95, "trend_intensity": 80}',
-    'executed',
-    (SELECT id FROM promotions WHERE promotion_code = 'PROMO-FLASH-001')
-),
-(
-    'Monitoring Agent',
-    (SELECT id FROM skus WHERE sku_code = 'CHIPS-SALT-001'),
-    3,
-    'retract_promotion',
-    'Promotion underperforming significantly. After 1 hour, only 10% of expected sales achieved. Margin has dropped to 8.5%, below minimum threshold of 10%. Recommend immediate retraction to prevent losses.',
-    '{"expected_units": 150, "actual_units": 15, "performance_ratio": 0.10, "current_margin": 8.5, "min_margin": 10.0}',
-    'executed',
-    (SELECT id FROM promotions WHERE promotion_code = 'PROMO-RETRACT-001')
-);
+-- INSERT INTO agent_decisions (agent_name, sku_id, store_id, decision_type, reasoning, data_used, decision_outcome, promotion_id)
+-- VALUES
+-- (
+--     'Market Analysis Agent',
+--     (SELECT id FROM skus WHERE sku_code = 'ICECREAM-VANILLA-001'),
+--     1,
+--     'create_promotion',
+--     'Detected strong opportunity: High temperature (32°C), excess inventory (850 units vs 600 capacity target), competitor running promotion, trending social topic related to ice cream. Recommend aggressive 2-hour flash sale to capitalize on demand spike.',
+--     '{"inventory": 850, "sell_through_7d": 45, "weather_temp": 32, "competitor_lowest_price": 5.95, "trend_intensity": 80}',
+--     'executed',
+--     (SELECT id FROM promotions WHERE promotion_code = 'PROMO-FLASH-001')
+-- ),
+-- (
+--     'Monitoring Agent',
+--     (SELECT id FROM skus WHERE sku_code = 'CHIPS-SALT-001'),
+--     3,
+--     'retract_promotion',
+--     'Promotion underperforming significantly. After 1 hour, only 10% of expected sales achieved. Margin has dropped to 8.5%, below minimum threshold of 10%. Recommend immediate retraction to prevent losses.',
+--     '{"expected_units": 150, "actual_units": 15, "performance_ratio": 0.10, "current_margin": 8.5, "min_margin": 10.0}',
+--     'executed',
+--     (SELECT id FROM promotions WHERE promotion_code = 'PROMO-RETRACT-001')
+-- );
 
 -- ============================================================================
 -- TOKEN USAGE (Sample for Cost Tracking)
 -- ============================================================================
 
 -- Simulate some historical token usage
-INSERT INTO token_usage (timestamp, agent_name, operation, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost, sku_id)
-VALUES
-(CURRENT_TIMESTAMP - INTERVAL '2 hours', 'Data Collection Agent', 'collect_sku_data', 'gpt-4o-mini', 450, 120, 570, 0.000140, (SELECT id FROM skus WHERE sku_code = 'ICECREAM-VANILLA-001')),
-(CURRENT_TIMESTAMP - INTERVAL '2 hours', 'Market Analysis Agent', 'analyze_opportunity', 'gpt-4o-mini', 680, 280, 960, 0.000270, (SELECT id FROM skus WHERE sku_code = 'ICECREAM-VANILLA-001')),
-(CURRENT_TIMESTAMP - INTERVAL '2 hours', 'Pricing Strategy Agent', 'calculate_optimal_price', 'gpt-4o-mini', 520, 180, 700, 0.000186, (SELECT id FROM skus WHERE sku_code = 'ICECREAM-VANILLA-001')),
-(CURRENT_TIMESTAMP - INTERVAL '2 hours', 'Promotion Design Agent', 'design_promotion', 'gpt-4o-mini', 890, 340, 1230, 0.000338, (SELECT id FROM skus WHERE sku_code = 'ICECREAM-VANILLA-001')),
-(CURRENT_TIMESTAMP - INTERVAL '1 hour', 'Monitoring Agent', 'check_promotion_performance', 'gpt-4o-mini', 380, 95, 475, 0.000114, (SELECT id FROM skus WHERE sku_code = 'ICECREAM-VANILLA-001'));
+-- INSERT INTO token_usage (timestamp, agent_name, operation, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost, sku_id)
+-- VALUES
+-- (CURRENT_TIMESTAMP - INTERVAL '2 hours', 'Data Collection Agent', 'collect_sku_data', 'gpt-4o-mini', 450, 120, 570, 0.000140, (SELECT id FROM skus WHERE sku_code = 'ICECREAM-VANILLA-001')),
+-- (CURRENT_TIMESTAMP - INTERVAL '2 hours', 'Market Analysis Agent', 'analyze_opportunity', 'gpt-4o-mini', 680, 280, 960, 0.000270, (SELECT id FROM skus WHERE sku_code = 'ICECREAM-VANILLA-001')),
+-- (CURRENT_TIMESTAMP - INTERVAL '2 hours', 'Pricing Strategy Agent', 'calculate_optimal_price', 'gpt-4o-mini', 520, 180, 700, 0.000186, (SELECT id FROM skus WHERE sku_code = 'ICECREAM-VANILLA-001')),
+-- (CURRENT_TIMESTAMP - INTERVAL '2 hours', 'Promotion Design Agent', 'design_promotion', 'gpt-4o-mini', 890, 340, 1230, 0.000338, (SELECT id FROM skus WHERE sku_code = 'ICECREAM-VANILLA-001')),
+-- (CURRENT_TIMESTAMP - INTERVAL '1 hour', 'Monitoring Agent', 'check_promotion_performance', 'gpt-4o-mini', 380, 95, 475, 0.000114, (SELECT id FROM skus WHERE sku_code = 'ICECREAM-VANILLA-001'));
 
 -- ============================================================================
 -- SIMULATOR STATE INITIALIZATION
 -- ============================================================================
 
-INSERT INTO simulator_state (simulator_type, state_data) VALUES
-('weather', jsonb_build_object('initialized', true, 'base_temperature', 25, 'season', 'summer', 'last_update', CURRENT_TIMESTAMP)),
-('competitor', jsonb_build_object('initialized', true, 'competitors_count', 3, 'last_price_update', CURRENT_TIMESTAMP)),
-('social', jsonb_build_object('initialized', true, 'active_trends', 2, 'upcoming_events', 3, 'last_update', CURRENT_TIMESTAMP));
+-- INSERT INTO simulator_state (simulator_type, state_data) VALUES
+-- ('weather', jsonb_build_object('initialized', true, 'base_temperature', 25, 'season', 'summer', 'last_update', CURRENT_TIMESTAMP)),
+-- ('competitor', jsonb_build_object('initialized', true, 'competitors_count', 3, 'last_price_update', CURRENT_TIMESTAMP)),
+-- ('social', jsonb_build_object('initialized', true, 'active_trends', 2, 'upcoming_events', 3, 'last_update', CURRENT_TIMESTAMP));
 
 -- ============================================================================
 -- DATA QUALITY CHECKS

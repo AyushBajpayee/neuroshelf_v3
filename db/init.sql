@@ -181,13 +181,11 @@ CREATE TABLE token_usage (
     timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     agent_name VARCHAR(100) NOT NULL,
     operation VARCHAR(200) NOT NULL,
-    model VARCHAR(50) NOT NULL DEFAULT 'gpt-4o-mini',
     prompt_tokens INTEGER NOT NULL,
     completion_tokens INTEGER NOT NULL,
     total_tokens INTEGER NOT NULL,
     estimated_cost DECIMAL(10, 6) NOT NULL,
     sku_id INTEGER REFERENCES skus(id),
-    promotion_id INTEGER REFERENCES promotions(id),
     context JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -347,26 +345,26 @@ GROUP BY agent_name
 ORDER BY total_cost DESC;
 
 -- Promotion ROI
-CREATE VIEW v_promotion_roi AS
-SELECT
-    p.id,
-    p.promotion_code,
-    p.sku_id,
-    p.store_id,
-    p.actual_revenue,
-    p.actual_units_sold,
-    p.margin_percent,
-    COALESCE(SUM(tu.estimated_cost), 0) AS agent_cost,
-    p.actual_revenue - COALESCE(SUM(tu.estimated_cost), 0) AS net_revenue,
-    CASE
-        WHEN COALESCE(SUM(tu.estimated_cost), 0) > 0
-        THEN (p.actual_revenue - COALESCE(SUM(tu.estimated_cost), 0)) / SUM(tu.estimated_cost)
-        ELSE 0
-    END AS roi_ratio
-FROM promotions p
-LEFT JOIN token_usage tu ON p.id = tu.promotion_id
-WHERE p.status IN ('completed', 'retracted')
-GROUP BY p.id, p.promotion_code, p.sku_id, p.store_id, p.actual_revenue, p.actual_units_sold, p.margin_percent;
+-- CREATE VIEW v_promotion_roi AS
+-- SELECT
+--     p.id,
+--     p.promotion_code,
+--     p.sku_id,
+--     p.store_id,
+--     p.actual_revenue,
+--     p.actual_units_sold,
+--     p.margin_percent,
+--     COALESCE(SUM(tu.estimated_cost), 0) AS agent_cost,
+--     p.actual_revenue - COALESCE(SUM(tu.estimated_cost), 0) AS net_revenue,
+--     CASE
+--         WHEN COALESCE(SUM(tu.estimated_cost), 0) > 0
+--         THEN (p.actual_revenue - COALESCE(SUM(tu.estimated_cost), 0)) / SUM(tu.estimated_cost)
+--         ELSE 0
+--     END AS roi_ratio
+-- FROM promotions p
+-- LEFT JOIN token_usage tu ON p.id = tu.promotion_id
+-- WHERE p.status IN ('completed', 'retracted')
+-- GROUP BY p.id, p.promotion_code, p.sku_id, p.store_id, p.actual_revenue, p.actual_units_sold, p.margin_percent;
 
 -- Pending Promotions Awaiting Approval
 CREATE VIEW v_pending_promotions AS

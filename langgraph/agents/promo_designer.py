@@ -57,10 +57,11 @@ def design_promotion_node(state: dict) -> dict:
         }
 
         print(f"  [Promo Designer] {promo_type.upper()} for {duration_hours}h, expect {expected_units} units")
-
+        print('Passing State from Promo Designer Agent to next ->', state)
         return state
 
     except Exception as e:
         print(f"  [Promo Designer] Error: {e}")
         state["error"] = str(e)
+        print('Passing State from Promo Designer Agent to next ->', state)
         return state

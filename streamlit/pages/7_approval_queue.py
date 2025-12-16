@@ -82,7 +82,7 @@ else:
                 st.markdown("**💰 Pricing**")
                 st.write(f"**Original Price:** ${float(promo['original_price']):.2f}")
                 st.write(f"**Promo Price:** ${float(promo['promotional_price']):.2f}")
-                st.write(f"**Discount:** ${float(promo['discount_value']):.2f}")
+                st.write(f"**Discount:** {float(promo['discount_value']):.2f}%")
                 st.write(f"**Margin:** {float(promo['margin_percent']):.2f}%")
 
             with col3:

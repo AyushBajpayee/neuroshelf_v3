@@ -1,2 +1,8 @@
 .venv
 .env
+scratchpad.txt
+.idea/
+*.iml
+*.iws
+*.ipr
+*.xml

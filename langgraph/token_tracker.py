@@ -14,8 +14,8 @@ class TokenTracker:
 
     def calculate_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
         """Calculate cost for token usage"""
-        input_cost = (prompt_tokens / 1_000_000) * self.costs["input"]
-        output_cost = (completion_tokens / 1_000_000) * self.costs["output"]
+        input_cost = (prompt_tokens / 1000000) * self.costs["input"]
+        output_cost = (completion_tokens / 1000000) * self.costs["output"]
         return round(input_cost + output_cost, 6)
 
     def log_usage(
@@ -25,7 +25,6 @@ class TokenTracker:
         prompt_tokens: int,
         completion_tokens: int,
         sku_id: Optional[int] = None,
-        promotion_id: Optional[int] = None,
         context: Optional[Dict[str, Any]] = None,
     ):
         """Log token usage to database via MCP"""
@@ -39,13 +38,11 @@ class TokenTracker:
                 {
                     "agent_name": agent_name,
                     "operation": operation,
-                    "model": self.model,
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
                     "total_tokens": total_tokens,
                     "estimated_cost": estimated_cost,
                     "sku_id": sku_id,
-                    "promotion_id": promotion_id,
                     "context": context or {},
                 },
             )

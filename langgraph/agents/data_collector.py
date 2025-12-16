@@ -62,10 +62,11 @@ def collect_data_node(state: dict) -> dict:
 
         # Log minimal token usage for data collection (no LLM call here)
         # In real implementation, if LLM is used for data parsing, log accordingly
-
+        print('Passing State from Data Collector Agent to next ->', state)
         return state
 
     except Exception as e:
         print(f"  [Data Collector] Error: {e}")
         state["error"] = str(e)
+        print('Passing State from Data Collector Agent to next ->', state)
         return state
