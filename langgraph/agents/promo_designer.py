@@ -7,7 +7,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from datetime import datetime, timedelta
 import config
-from token_tracker import token_tracker
+from mcp_client import mcp_client
 
 
 def design_promotion_node(state: dict) -> dict:
@@ -53,15 +53,33 @@ def design_promotion_node(state: dict) -> dict:
             "target_radius_km": config.PROMOTION_DEFAULTS["target_radius_km"],
             "expected_units_sold": expected_units,
             "expected_revenue": round(expected_revenue, 2),
-            "reason": f"{promo_type.upper()}: {pricing.get('reasoning', 'Market opportunity detected')[:200]}",
+            "reason": f"{promo_type.upper()}: {pricing.get('reasoning', 'Market opportunity detected')}",
         }
 
         print(f"  [Promo Designer] {promo_type.upper()} for {duration_hours}h, expect {expected_units} units")
-        print('Passing State from Promo Designer Agent to next ->', state)
+        # print('Passing State from Promo Designer Agent to next ->', state)
+        # Log decision
+        mcp_client.call_tool(
+            "postgres",
+            "log_agent_decision",
+            {
+                "agent_name": "Promotion Design Agent",
+                "sku_id": state["sku_id"],
+                "store_id": state["store_id"],
+                "decision_type": "promotion_design",
+                "reasoning": 'Promotion designed based on pricing strategy',
+                "data_used": {
+                    "pricing_strategy": pricing,
+                    "weather_data": weather,
+                    "social_data": social,
+                },
+                "decision_outcome": "no_action",
+            },
+        )
         return state
 
     except Exception as e:
         print(f"  [Promo Designer] Error: {e}")
         state["error"] = str(e)
-        print('Passing State from Promo Designer Agent to next ->', state)
+        # print('Passing State from Promo Designer Agent to next ->', state)
         return state

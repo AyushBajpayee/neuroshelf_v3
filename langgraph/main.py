@@ -163,6 +163,7 @@ async def agent_loop():
             sample_size = min(10, len(targets))
             sample_targets = targets[:sample_size]
 
+            print('sample_targets:', sample_targets)
             for target in sample_targets:
                 run_pricing_analysis(target["sku_id"], target["store_id"])
                 await asyncio.sleep(1)  # Small delay between analyses

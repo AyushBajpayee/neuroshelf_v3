@@ -3,12 +3,13 @@ Pricing Strategy Agent
 Calculates optimal pricing strategy
 """
 
+import json
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 import config
 import tiktoken
 from token_tracker import token_tracker
-
+from mcp_client import mcp_client
 
 def design_pricing_node(state: dict) -> dict:
     """Design optimal pricing strategy"""
@@ -80,15 +81,6 @@ Respond with JSON:
             context={"store_id": state["store_id"]}
         )
         print(f'Token usage logged for Pricing Strategy Agent.')
-        # token_tracker.extract_and_log(
-        #     response,
-        #     agent_name="Pricing Strategy Agent",
-        #     operation="calculate_optimal_price",
-        #     sku_id=state["sku_id"],
-        # )
-
-        # Simple parsing (in production, use robust JSON parsing)
-        # For demo, calculate reasonable price
         target_price = lowest_comp_price * 0.95  # Slightly undercut competitor
         margin = ((target_price - base_cost) / target_price) * 100
 
@@ -104,15 +96,36 @@ Respond with JSON:
             "promotional_price": round(target_price, 2),
             "discount_percent": round(discount_pct, 1),
             "margin_percent": round(margin, 2),
-            "reasoning": response.content[:300],
+            "reasoning": json.loads(response.content)['reasoning'],
         }
 
         print(f"  [Pricing Strategy] Price: ${target_price:.2f} (Margin: {margin:.1f}%)")
-        print('Passing State from Pricing Strategy Agent to next ->', state)
+        # print('Passing State from Pricing Strategy Agent to next ->', state)
+        # Log decision
+        print('')
+        mcp_client.call_tool(
+            "postgres",
+            "log_agent_decision",
+            {
+                "agent_name": "Pricing Strategy Agent",
+                "sku_id": state["sku_id"],
+                "store_id": state["store_id"],
+                "decision_type": "pricing_strategy",
+                "reasoning": json.loads(response.content)['reasoning'],
+                "data_used": {
+                    "competitors": state.get("competitor_data", []),
+                    'analysis': state.get("analysis_result", {}),
+                    'base_price': inventory.get("base_price", 5.99),
+                    'base_cost': inventory.get("base_cost", 3.50),
+                    'lowest_competitor_price': lowest_comp_price,
+                },
+                "decision_outcome": "no_action",
+            },
+        )
         return state
 
     except Exception as e:
         print(f"  [Pricing Strategy] Error: {e}")
         state["error"] = str(e)
-        print('Passing State from Pricing Strategy Agent to next ->', state)
+        # print('Passing State from Pricing Strategy Agent to next ->', state)
         return state
