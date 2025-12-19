@@ -62,11 +62,29 @@ def collect_data_node(state: dict) -> dict:
 
         # Log minimal token usage for data collection (no LLM call here)
         # In real implementation, if LLM is used for data parsing, log accordingly
-        print('Passing State from Data Collector Agent to next ->', state)
+        # print('Passing State from Data Collector Agent to next ->', state)
+        mcp_client.call_tool(
+                "postgres",
+                "log_agent_decision",
+                {
+                    "agent_name": "Data Collector Agent",
+                    "sku_id": state["sku_id"],
+                    "store_id": state["store_id"],
+                    "decision_type": "Collect Data",
+                    "reasoning": 'Data collection completed',
+                    "data_used": {
+                        "inventory": state.get("inventory_data", {}),
+                        "weather": state.get("weather_data", {}),
+                        "competitor": state.get("competitor_data", {}),
+                        "social": state.get("social_data", {}),
+                    },
+                    "decision_outcome": "no_action",
+                },
+            )
         return state
 
     except Exception as e:
         print(f"  [Data Collector] Error: {e}")
         state["error"] = str(e)
-        print('Passing State from Data Collector Agent to next ->', state)
+        # print('Passing State from Data Collector Agent to next ->', state)
         return state

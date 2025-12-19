@@ -155,31 +155,60 @@ async def agent_loop():
             print(f"{'='*60}")
 
             # Get all SKU/store combinations
-            targets = get_all_skus_and_stores()
-            print(f"Analyzing {len(targets)} SKU/store combinations...")
+            # targets = get_all_skus_and_stores()
+            # skus_str = os.getenv("skus_considered", "")
+            # stores_str = os.getenv("stores_considered", "")
+            skus_str = config.SKUS_CONSIDERED
+            stores_str = config.STORES_CONSIDERED
+
+            # Some deployments use uppercase env names (SKUS_CONSIDERED).
+            # Use uppercase variants as a fallback when lowercase keys are empty.
+
+            # Turn comma-separated strings into lists of ints (guard when env vars are missing)
+            # skus = [int(x) for x in skus_str.split(",") if x]
+            # stores = [int(x) for x in stores_str.split(",") if x]
+            # print(f"Analyzing {len(targets)} SKU/store combinations...")
 
             # Analyze each target (in production, consider parallelization)
             # For now, we'll sample a subset to avoid overwhelming the system
-            sample_size = min(10, len(targets))
-            sample_targets = targets[:sample_size]
+            # sample_size = min(10, len(targets))
+            # sample_targets = targets[:sample_size]
 
-            for target in sample_targets:
-                run_pricing_analysis(target["sku_id"], target["store_id"])
-                await asyncio.sleep(1)  # Small delay between analyses
+            # print('sample_targets:', sample_targets)
+            # for target in sample_targets:
+            #     run_pricing_analysis(target["sku_id"], target["store_id"])
+            #     await asyncio.sleep(1)  # Small delay between analyses
+            stores = [1,2,3,4,5]
+            skus = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+            for store in stores:
+                for sku in skus:
+                    run_pricing_analysis(sku, store)
+                    await asyncio.sleep(1)  # Small delay between analyses
+                # Update agent state
+                agent_state["last_run"] = datetime.now().isoformat()
+                agent_state["cycles_completed"] += 1
+
+                cycle_duration = time.time() - cycle_start
+                print(f"\nCycle completed in {cycle_duration:.2f} seconds")
+                print(f"Next cycle in {interval_minutes} minutes")
+
+                monitor_active_promotions()
+                # Wait until next cycle
+                await asyncio.sleep(interval_seconds)
 
             # Monitor active promotions
             monitor_active_promotions()
 
-            # Update agent state
-            agent_state["last_run"] = datetime.now().isoformat()
-            agent_state["cycles_completed"] += 1
+            # # Update agent state
+            # agent_state["last_run"] = datetime.now().isoformat()
+            # agent_state["cycles_completed"] += 1
 
-            cycle_duration = time.time() - cycle_start
-            print(f"\nCycle completed in {cycle_duration:.2f} seconds")
-            print(f"Next cycle in {interval_minutes} minutes")
+            # cycle_duration = time.time() - cycle_start
+            # print(f"\nCycle completed in {cycle_duration:.2f} seconds")
+            # print(f"Next cycle in {interval_minutes} minutes")
 
-            # Wait until next cycle
-            await asyncio.sleep(interval_seconds)
+            # # Wait until next cycle
+            # await asyncio.sleep(interval_seconds)
 
         except Exception as e:
             print(f"Error in agent loop: {e}")
@@ -202,6 +231,8 @@ async def startup_event():
         print(f"  - Max Discount: {config.AGENT_CONFIG['max_discount_percent']}%")
         print(f"  - Auto Retract Threshold: {config.AGENT_CONFIG['auto_retract_threshold']}")
         print(f"  - Manual Approval Required: {config.AGENT_CONFIG['require_manual_approval']}")
+        print(f"SKUs Considered: {config.SKUS_CONSIDERED}")
+        print(f"Stores Considered: {config.STORES_CONSIDERED}")
 
         # Start agent loop in background
         asyncio.create_task(agent_loop())

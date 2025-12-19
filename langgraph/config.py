@@ -59,3 +59,6 @@ PERFORMANCE_THRESHOLDS = {
     "acceptable": 0.7,  # 70% of expected
     "poor": 0.5,  # Below 50% triggers retraction
 }
+
+SKUS_CONSIDERED = os.getenv("skus_considered", "")
+STORES_CONSIDERED = os.getenv("stores_considered", "")
