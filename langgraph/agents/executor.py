@@ -112,6 +112,7 @@ def execute_promotion_node(state: dict) -> dict:
                 "sku_id": state["sku_id"],
                 "store_id": state["store_id"],
                 "decision_type": "create_promotion",
+                "prompt_fed": None,
                 "reasoning": promo_design.get("reason", "Promotion executed"),
                 "data_used": promo_design,
                 "decision_outcome": "executed",

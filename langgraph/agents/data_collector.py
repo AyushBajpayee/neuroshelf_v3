@@ -72,6 +72,7 @@ def collect_data_node(state: dict) -> dict:
                     "store_id": state["store_id"],
                     "decision_type": "Collect Data",
                     "reasoning": 'Data collection completed',
+                    "prompt_fed": None,
                     "data_used": {
                         "inventory": state.get("inventory_data", {}),
                         "weather": state.get("weather_data", {}),

@@ -109,6 +109,7 @@ Respond with JSON:
                 "sku_id": state["sku_id"],
                 "store_id": state["store_id"],
                 "decision_type": "market_analysis",
+                "prompt_fed": input_text,
                 "reasoning": json.loads(response.content)['reasoning'],
                 "data_used": {
                     "inventory_status": inventory.get("stock_status"),
