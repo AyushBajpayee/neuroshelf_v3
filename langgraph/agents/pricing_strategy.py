@@ -111,6 +111,7 @@ Respond with JSON:
                 "sku_id": state["sku_id"],
                 "store_id": state["store_id"],
                 "decision_type": "pricing_strategy",
+                "prompt_fed": input_text,
                 "reasoning": json.loads(response.content)['reasoning'],
                 "data_used": {
                     "competitors": state.get("competitor_data", []),

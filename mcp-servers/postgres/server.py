@@ -479,6 +479,7 @@ def log_agent_decision(
     sku_id: int,
     store_id: int,
     decision_type: str,
+    prompt_fed: str,
     reasoning: str,
     data_used: Dict,
     decision_outcome: str,
@@ -490,9 +491,9 @@ def log_agent_decision(
 
     query = """
         INSERT INTO agent_decisions (
-            agent_name, sku_id, store_id, decision_type, reasoning,
+            agent_name, sku_id, store_id, decision_type, prompt_fed, reasoning,
             data_used, decision_outcome, promotion_id
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id, decision_id, created_at
     """
 
@@ -503,6 +504,7 @@ def log_agent_decision(
             sku_id,
             store_id,
             decision_type,
+            prompt_fed,
             reasoning,
             json.dumps(data_used),
             decision_outcome,

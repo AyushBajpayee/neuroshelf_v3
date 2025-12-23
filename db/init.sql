@@ -198,6 +198,7 @@ CREATE TABLE agent_decisions (
     sku_id INTEGER REFERENCES skus(id),
     store_id INTEGER REFERENCES stores(id),
     decision_type VARCHAR(100) NOT NULL, -- 'create_promotion', 'retract_promotion', 'no_action'
+    prompt_fed TEXT,
     reasoning TEXT NOT NULL,
     data_used JSONB,
     decision_outcome VARCHAR(50), -- 'executed', 'rejected', 'pending'

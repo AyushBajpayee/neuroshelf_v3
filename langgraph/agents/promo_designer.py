@@ -67,6 +67,7 @@ def design_promotion_node(state: dict) -> dict:
                 "sku_id": state["sku_id"],
                 "store_id": state["store_id"],
                 "decision_type": "promotion_design",
+                "prompt_fed": None,
                 "reasoning": 'Promotion designed based on pricing strategy',
                 "data_used": {
                     "pricing_strategy": pricing,
