@@ -10,9 +10,15 @@ import config
 import tiktoken
 from token_tracker import token_tracker
 from mcp_client import mcp_client
+from runtime_tracker import set_current_agent
 
 def design_pricing_node(state: dict) -> dict:
     """Design optimal pricing strategy"""
+    set_current_agent(
+        "Pricing Strategy Agent",
+        sku_id=state.get("sku_id"),
+        store_id=state.get("store_id"),
+    )
     print(f"  [Pricing Strategy] Designing pricing strategy...")
 
     try:

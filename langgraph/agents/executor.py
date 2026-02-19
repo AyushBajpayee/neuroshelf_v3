@@ -5,10 +5,16 @@ Deploys promotions to the system
 
 from mcp_client import mcp_client
 import config
+from runtime_tracker import set_current_agent
 
 
 def execute_promotion_node(state: dict) -> dict:
     """Execute and deploy promotion"""
+    set_current_agent(
+        "Execution Agent",
+        sku_id=state.get("sku_id"),
+        store_id=state.get("store_id"),
+    )
     print(f"  [Executor] Deploying promotion...")
 
     try:

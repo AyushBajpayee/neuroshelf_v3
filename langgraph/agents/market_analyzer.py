@@ -10,9 +10,15 @@ from token_tracker import token_tracker
 from mcp_client import mcp_client
 import tiktoken
 import json
+from runtime_tracker import set_current_agent
 
 def analyze_market_node(state: dict) -> dict:
     """Analyze market conditions and decide if action is needed"""
+    set_current_agent(
+        "Market Analysis Agent",
+        sku_id=state.get("sku_id"),
+        store_id=state.get("store_id"),
+    )
     print(f"  [Market Analyzer] Analyzing market conditions...")
 
     try:

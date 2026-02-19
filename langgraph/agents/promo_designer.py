@@ -8,10 +8,16 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from datetime import datetime, timedelta
 import config
 from mcp_client import mcp_client
+from runtime_tracker import set_current_agent
 
 
 def design_promotion_node(state: dict) -> dict:
     """Design promotion details"""
+    set_current_agent(
+        "Promotion Design Agent",
+        sku_id=state.get("sku_id"),
+        store_id=state.get("store_id"),
+    )
     print(f"  [Promo Designer] Designing promotion...")
 
     try:

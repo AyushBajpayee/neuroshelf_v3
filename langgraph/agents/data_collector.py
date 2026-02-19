@@ -6,12 +6,14 @@ Gathers all necessary data for pricing decisions
 from langchain_core.messages import HumanMessage
 from mcp_client import mcp_client
 from token_tracker import token_tracker
+from runtime_tracker import set_current_agent
 
 
 def collect_data_node(state: dict) -> dict:
     """Collect data from all sources"""
     sku_id = state["sku_id"]
     store_id = state["store_id"]
+    set_current_agent("Data Collection Agent", sku_id=sku_id, store_id=store_id)
 
     print(f"  [Data Collector] Gathering data for SKU {sku_id} at Store {store_id}...")
 

@@ -4,8 +4,6 @@ sys.path.append('..')
 from app import get_db_connection
 import pandas as pd
 
-st.set_page_config(page_title="SKU Monitor", page_icon="📦", layout="wide")
-
 st.title("📦 SKU Monitor")
 st.markdown("---")
 
