@@ -5,10 +5,17 @@ Tracks promotion performance and retracts if necessary
 
 from mcp_client import mcp_client
 import config
+from runtime_tracker import set_current_agent
 
 
 def monitor_performance_node(state: dict) -> dict:
     """Monitor promotion performance"""
+    set_current_agent(
+        "Monitoring Agent",
+        sku_id=state.get("sku_id"),
+        store_id=state.get("store_id"),
+        promotion_id=state.get("promotion_id"),
+    )
     promotion_id = state.get("promotion_id")
 
     if not promotion_id:
@@ -53,6 +60,12 @@ def monitor_performance_node(state: dict) -> dict:
 
 def retract_promotion_node(state: dict) -> dict:
     """Retract underperforming promotion"""
+    set_current_agent(
+        "Monitoring Agent (Retraction)",
+        sku_id=state.get("sku_id"),
+        store_id=state.get("store_id"),
+        promotion_id=state.get("promotion_id"),
+    )
     promotion_id = state.get("promotion_id")
 
     try:

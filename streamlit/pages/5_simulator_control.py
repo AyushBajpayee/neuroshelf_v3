@@ -1,8 +1,6 @@
 import streamlit as st
 import httpx
 
-st.set_page_config(page_title="Simulator Control", page_icon="🎮", layout="wide")
-
 st.title("🎮 Simulator Control Panel")
 st.markdown("---")
 

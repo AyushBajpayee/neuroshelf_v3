@@ -5,8 +5,6 @@ from app import get_db_connection
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(page_title="Token & Cost Tracker", page_icon="💰", layout="wide")
-
 st.title("💰 Token Usage & Cost Tracker")
 st.markdown("---")
 

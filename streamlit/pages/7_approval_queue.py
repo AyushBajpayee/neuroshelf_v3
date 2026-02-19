@@ -8,8 +8,6 @@ import requests
 import json
 from datetime import datetime
 
-st.set_page_config(page_title="Approval Queue", page_icon="✅", layout="wide")
-
 st.title("✅ Promotion Approval Queue")
 st.markdown("Review and approve/reject agent-recommended promotions")
 

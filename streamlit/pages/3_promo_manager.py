@@ -4,8 +4,6 @@ sys.path.append('..')
 from app import get_db_connection
 import pandas as pd
 
-st.set_page_config(page_title="Promotion Manager", page_icon="🎯", layout="wide")
-
 st.title("🎯 Promotion Manager")
 st.markdown("---")
 
