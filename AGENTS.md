@@ -44,6 +44,7 @@ Key note: several docs still mention Postgres on host `5432`; current compose ma
 Environment variables are defined in `.env.example`.
 
 Important toggles:
+- `AGENT_AUTO_START` (`true`/`false`) controls whether agent processing starts automatically on container boot
 - `AGENT_REQUIRE_MANUAL_APPROVAL` (`true`/`false`)
 - `AGENT_MONITORING_INTERVAL_MINUTES`
 - `AGENT_MIN_MARGIN_PERCENT`
@@ -63,7 +64,8 @@ Model caveat:
 - `mcp-servers/competitor-simulator/*`: competitor pricing simulation
 - `mcp-servers/social-simulator/*`: trends/events simulation + DB writes
 - `langgraph/graph.py`: pricing + monitoring graphs
-- `langgraph/main.py`: FastAPI endpoints + background agent loop
+- `langgraph/main.py`: FastAPI endpoints + background worker + pause/resume cursor
+- `langgraph/runtime_tracker.py`: thread-safe live runtime context (current agent/sku/store)
 - `langgraph/agents/*.py`: agent nodes (collect/analyze/price/design/execute/monitor)
 - `streamlit/app.py` and `streamlit/pages/*`: UI and approval queue
 - `docs/MANUAL_APPROVAL_WORKFLOW.md`: human-in-the-loop workflow details
@@ -74,7 +76,38 @@ Model caveat:
 - Monitoring graph flow:
   `monitor -> (retract?) -> retract`
 - Manual approval mode routes promotions to `pending_promotions`; approvals create active records in `promotions`.
-- `langgraph/main.py` currently iterates hard-coded stores `[1..5]` and SKUs `[1..20]` in `agent_loop`.
+- Agent target scan order defaults to stores `[1..5]` x SKUs `[1..20]` (overridable via `SKUS_CONSIDERED` and `STORES_CONSIDERED`).
+- `langgraph/main.py` no longer hard-starts processing on startup; it starts paused unless `AGENT_AUTO_START=true`.
+- Agent processing is pause/resume capable and resumes from `next_target_index` in the current cycle.
+- Blocking graph calls run through `asyncio.to_thread(...)` in the loop so `/status` and control APIs stay responsive while agents run.
+
+## Agent Control APIs
+- `POST /agent/start`: start or resume loop from current cursor
+- `POST /agent/stop`: pause loop without resetting cursor
+- `GET /status`: includes runtime metadata:
+  - `in_progress_target`
+  - `current_agent`
+  - `current_sku_id`
+  - `current_store_id`
+  - `current_agent_updated_at`
+
+## Streamlit Control Panel
+- Sidebar Agent Control in `streamlit/app.py` supports:
+  - Start/Stop buttons (calls `/agent/start` and `/agent/stop`)
+  - cycle progress and completed cycles
+  - next target
+  - in-progress SKU/store and current agent name
+- `streamlit/pages/*.py` no longer call `st.set_page_config(...)`; page config is set only once in `streamlit/app.py` to avoid multipage import conflicts.
+
+## Recent Implementation Notes
+- New file: `langgraph/runtime_tracker.py`.
+- Agent nodes now set live agent context:
+  - `Data Collection Agent`
+  - `Market Analysis Agent`
+  - `Pricing Strategy Agent`
+  - `Promotion Design Agent`
+  - `Execution Agent`
+  - `Monitoring Agent` / `Monitoring Agent (Retraction)`
 
 ## MCP Tool Surface (High Level)
 - Postgres MCP: inventory, sell-through, promotion CRUD, token logs, decision logs, pending approval tools
@@ -105,4 +138,3 @@ Useful views:
   - relevant `.md` docs
 - Avoid introducing hard-coded host ports outside `docker-compose.yml` contracts.
 - Do not commit secrets from `.env`.
-
