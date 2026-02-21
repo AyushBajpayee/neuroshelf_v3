@@ -35,6 +35,7 @@ services:
       DB_USER: ${POSTGRES_USER:-pricing_user}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-pricing_pass}
       DB_NAME: ${POSTGRES_DB:-pricing_intelligence}
+      ENABLE_APPROVAL_LEARNING: ${ENABLE_APPROVAL_LEARNING:-false}
     ports:
       - "3000:3000"
     depends_on:
@@ -144,6 +145,19 @@ services:
       AGENT_MAX_DISCOUNT_PERCENT: ${AGENT_MAX_DISCOUNT_PERCENT:-40}
       AGENT_AUTO_RETRACT_THRESHOLD: ${AGENT_AUTO_RETRACT_THRESHOLD:-0.5}
       AGENT_REQUIRE_MANUAL_APPROVAL: ${AGENT_REQUIRE_MANUAL_APPROVAL:-false}
+      OPTIMIZATION_MAX_ITERATIONS: ${OPTIMIZATION_MAX_ITERATIONS:-3}
+      OPTIMIZATION_OBJECTIVE: ${OPTIMIZATION_OBJECTIVE:-profit_maximization}
+      ENABLE_DECISION_LEARNING: ${ENABLE_DECISION_LEARNING:-false}
+      ENABLE_OPTIMIZATION_LOOP: ${ENABLE_OPTIMIZATION_LOOP:-false}
+      ENABLE_MULTI_CRITIC: ${ENABLE_MULTI_CRITIC:-false}
+      ENABLE_APPROVAL_LEARNING: ${ENABLE_APPROVAL_LEARNING:-false}
+      ENABLE_RAG_SIMILARITY: ${ENABLE_RAG_SIMILARITY:-false}
+      CRITIC_REVISE_THRESHOLD: ${CRITIC_REVISE_THRESHOLD:-65}
+      CRITIC_REJECT_THRESHOLD: ${CRITIC_REJECT_THRESHOLD:-45}
+      CHROMA_HOST: ${CHROMA_HOST:-chroma-db}
+      CHROMA_PORT: ${CHROMA_PORT:-8000}
+      CHROMA_COLLECTION: ${CHROMA_COLLECTION:-promotion_similarity}
+      RAG_RETRIEVAL_K: ${RAG_RETRIEVAL_K:-5}
     ports:
       - "8000:8000"
     depends_on:
@@ -155,6 +169,21 @@ services:
         condition: service_healthy
       mcp-social:
         condition: service_healthy
+    networks:
+      - pricing-network
+
+  # Optional Chroma vector database for RAG similarity retrieval
+  chroma-db:
+    image: chromadb/chroma:0.5.5
+    container_name: pricing-chroma-db
+    profiles:
+      - rag
+    environment:
+      IS_PERSISTENT: "TRUE"
+    ports:
+      - "8004:8000"
+    volumes:
+      - chroma-data:/chroma/chroma
     networks:
       - pricing-network
 
@@ -205,4 +234,6 @@ networks:
 
 volumes:
   pgdata:
+    driver: local
+  chroma-data:
     driver: local

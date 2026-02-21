@@ -89,6 +89,7 @@ def retract_promotion_node(state: dict) -> dict:
                 "sku_id": state.get("sku_id"),
                 "store_id": state.get("store_id"),
                 "decision_type": "retract_promotion",
+                "prompt_fed": None,
                 "reasoning": "Performance monitoring triggered retraction",
                 "data_used": state.get("performance_data", {}),
                 "decision_outcome": "retracted",

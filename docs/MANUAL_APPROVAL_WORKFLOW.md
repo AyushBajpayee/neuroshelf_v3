@@ -34,6 +34,12 @@ Then restart the LangGraph container:
 docker-compose restart langgraph-core
 ```
 
+To persist approval/rejection decisions as learning signals, enable:
+
+```bash
+ENABLE_APPROVAL_LEARNING=true
+```
+
 ## How It Works
 
 ### 1. Agent Creates Promotion Recommendation
@@ -77,12 +83,14 @@ For each pending promotion, you can:
 - Generates promotion code (e.g., `PROMO-20251211153045-SKU-STORE`)
 - Links approved promotion back to pending record
 - Updates pending status to `approved`
+- If approval learning is enabled, writes a structured signal to `approval_feedback`
 
 #### Reject
 - Enter your name as reviewer
 - **Required**: Enter rejection reason/notes
 - Click **Reject** button
 - Pending promotion status updated to `rejected`
+- If approval learning is enabled, writes a structured signal to `approval_feedback`
 - Agent can learn from rejection patterns over time
 
 ### 4. Tracking & Analytics
@@ -135,6 +143,26 @@ CREATE TABLE pending_promotions (
     approved_promotion_id INTEGER REFERENCES promotions(id),
 
     -- Metadata
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### `approval_feedback` Table
+
+```sql
+CREATE TABLE approval_feedback (
+    id SERIAL PRIMARY KEY,
+    pending_promotion_id INTEGER REFERENCES pending_promotions(id),
+    promotion_id INTEGER REFERENCES promotions(id),
+    decision_id INTEGER REFERENCES agent_decisions(id),
+    sku_id INTEGER REFERENCES skus(id),
+    store_id INTEGER REFERENCES stores(id),
+    reviewer_outcome VARCHAR(50) NOT NULL, -- approved | rejected
+    reviewed_by VARCHAR(100) NOT NULL,
+    reviewer_notes TEXT,
+    decision_context JSONB,
+    feedback_payload JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

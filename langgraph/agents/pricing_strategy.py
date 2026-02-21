@@ -12,6 +12,15 @@ from token_tracker import token_tracker
 from mcp_client import mcp_client
 from runtime_tracker import set_current_agent
 
+
+def _parse_json_response(raw_text: str) -> dict:
+    """Parse model JSON response defensively."""
+    try:
+        return json.loads(raw_text)
+    except Exception:
+        return {"reasoning": raw_text}
+
+
 def design_pricing_node(state: dict) -> dict:
     """Design optimal pricing strategy"""
     set_current_agent(
@@ -25,13 +34,26 @@ def design_pricing_node(state: dict) -> dict:
         inventory = state.get("inventory_data", {})
         competitors = state.get("competitor_data", [])
         analysis = state.get("analysis_result", {})
+        priors = state.get("decision_priors", {}) or {}
+        similar_cases = state.get("similar_cases", []) or []
 
         # Get base price and cost
         base_price = inventory.get("base_price", 5.99)
         base_cost = inventory.get("base_cost", 3.50)
 
         # Find lowest competitor price
-        lowest_comp_price = min([c.get("price", 999) for c in competitors]) if competitors else base_price
+        lowest_comp_price = (
+            min([c.get("price", c.get("competitor_price", 999)) for c in competitors])
+            if competitors else base_price
+        )
+
+        priors_context = (
+            f"Success Probability: {priors.get('success_probability')}\n"
+            f"Confidence: {priors.get('confidence_score')}\n"
+            f"Expected ROI Band: {priors.get('expected_roi_band')}\n"
+            f"Risk Flags: {priors.get('risk_flags', [])}\n"
+            f"Recommended Discount Range: {priors.get('recommended_discount_range', {})}\n"
+        ) if priors else "No decision priors available."
 
         prompt = f"""
 Design an optimal pricing strategy:
@@ -45,6 +67,12 @@ Design an optimal pricing strategy:
 
 **Market Analysis:**
 {analysis.get('reasoning', 'Action recommended')}
+
+**Behavioral Priors (Historical Learning):**
+{priors_context}
+
+**Similar Historical Cases (Top {min(len(similar_cases), 3)}):**
+{similar_cases[:3]}
 
 Calculate the optimal promotional price that:
 1. Maintains minimum margin of {config.AGENT_CONFIG['min_margin_percent']}%
@@ -71,6 +99,7 @@ Respond with JSON:
             SystemMessage(content=system_messsage),
             HumanMessage(content=prompt),
         ])
+        parsed_response = _parse_json_response(response.content)
         encoding = tiktoken.get_encoding("cl100k_base")
         input_text = system_messsage + prompt
         output_text = response.content
@@ -96,13 +125,30 @@ Respond with JSON:
             margin = config.AGENT_CONFIG["min_margin_percent"]
 
         discount_pct = ((base_price - target_price) / base_price) * 100
+        discount_range = priors.get("recommended_discount_range", {}) if priors else {}
+        if discount_range:
+            min_discount = float(discount_range.get("min_percent", 0) or 0)
+            max_discount = float(
+                discount_range.get("max_percent", config.AGENT_CONFIG["max_discount_percent"])
+                or config.AGENT_CONFIG["max_discount_percent"]
+            )
+            discount_pct = max(min_discount, min(max_discount, discount_pct))
+            discount_pct = min(discount_pct, config.AGENT_CONFIG["max_discount_percent"])
+            target_price = base_price * (1 - discount_pct / 100)
+            margin = ((target_price - base_cost) / target_price) * 100 if target_price > 0 else 0
+
+        if discount_pct > config.AGENT_CONFIG["max_discount_percent"]:
+            discount_pct = config.AGENT_CONFIG["max_discount_percent"]
+            target_price = base_price * (1 - discount_pct / 100)
+            margin = ((target_price - base_cost) / target_price) * 100 if target_price > 0 else 0
 
         state["pricing_strategy"] = {
             "original_price": base_price,
             "promotional_price": round(target_price, 2),
             "discount_percent": round(discount_pct, 1),
             "margin_percent": round(margin, 2),
-            "reasoning": json.loads(response.content)['reasoning'],
+            "reasoning": parsed_response.get("reasoning", response.content),
+            "decision_priors_applied": bool(priors),
         }
 
         print(f"  [Pricing Strategy] Price: ${target_price:.2f} (Margin: {margin:.1f}%)")
@@ -118,15 +164,17 @@ Respond with JSON:
                 "store_id": state["store_id"],
                 "decision_type": "pricing_strategy",
                 "prompt_fed": input_text,
-                "reasoning": json.loads(response.content)['reasoning'],
+                "reasoning": parsed_response.get("reasoning", "Pricing strategy generated."),
                 "data_used": {
                     "competitors": state.get("competitor_data", []),
                     'analysis': state.get("analysis_result", {}),
                     'base_price': inventory.get("base_price", 5.99),
                     'base_cost': inventory.get("base_cost", 3.50),
                     'lowest_competitor_price': lowest_comp_price,
+                    "decision_priors": priors,
+                    "retrieval_stats": state.get("retrieval_stats", {}),
                 },
-                "decision_outcome": "no_action",
+                "decision_outcome": "strategy_created",
             },
         )
         return state

@@ -1,5 +1,10 @@
 import streamlit as st
 import httpx
+import sys
+sys.path.append('..')
+from common import render_sidebar
+
+render_sidebar(show_navigation=False, key_prefix="simulator_control")
 
 st.title("🎮 Simulator Control Panel")
 st.markdown("---")

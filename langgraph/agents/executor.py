@@ -19,6 +19,32 @@ def execute_promotion_node(state: dict) -> dict:
 
     try:
         promo_design = state.get("promotion_design", {})
+        critic_decision = state.get("critic_decision", {}) or {}
+
+        if critic_decision.get("action") == "reject":
+            print("  [Executor] Execution skipped due to critic rejection.")
+            state["execution_result"] = {
+                "status": "rejected_by_critics",
+                "message": critic_decision.get("reason", "Multi-critic review rejected proposal."),
+            }
+            mcp_client.call_tool(
+                "postgres",
+                "log_agent_decision",
+                {
+                    "agent_name": "Execution Agent",
+                    "sku_id": state["sku_id"],
+                    "store_id": state["store_id"],
+                    "decision_type": "create_promotion",
+                    "prompt_fed": None,
+                    "reasoning": critic_decision.get("reason", "Execution blocked by critic arbitration."),
+                    "data_used": {
+                        "promotion_design": promo_design,
+                        "critic_decision": critic_decision,
+                    },
+                    "decision_outcome": "rejected",
+                },
+            )
+            return state
 
         # Check if manual approval required
         if config.AGENT_CONFIG["require_manual_approval"]:
@@ -72,6 +98,7 @@ def execute_promotion_node(state: dict) -> dict:
                     "sku_id": state["sku_id"],
                     "store_id": state["store_id"],
                     "decision_type": "create_promotion",
+                    "prompt_fed": None,
                     "reasoning": promo_design.get("reason", "Promotion pending approval"),
                     "data_used": promo_design,
                     "decision_outcome": "pending_approval",

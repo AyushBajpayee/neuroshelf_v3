@@ -18,11 +18,14 @@ app = FastAPI(title="MCP Postgres Server", version="1.0.0")
 
 # Database configuration
 DB_CONFIG = {
-    "host": os.getenv("POSTGRES_HOST", "postgres"),
-    "port": int(os.getenv("POSTGRES_PORT", 5432)),
-    "user": os.getenv("POSTGRES_USER", "pricing_user"),
-    "password": os.getenv("POSTGRES_PASSWORD", "pricing_pass"),
-    "database": os.getenv("POSTGRES_DB", "pricing_intelligence"),
+    "host": os.getenv("DB_HOST", os.getenv("POSTGRES_HOST", "postgres")),
+    "port": int(os.getenv("DB_PORT", os.getenv("POSTGRES_PORT", 5432))),
+    "user": os.getenv("DB_USER", os.getenv("POSTGRES_USER", "pricing_user")),
+    "password": os.getenv("DB_PASSWORD", os.getenv("POSTGRES_PASSWORD", "pricing_pass")),
+    "database": os.getenv("DB_NAME", os.getenv("POSTGRES_DB", "pricing_intelligence")),
+}
+FEATURE_FLAGS = {
+    "enable_approval_learning": os.getenv("ENABLE_APPROVAL_LEARNING", "false").lower() == "true",
 }
 
 
@@ -46,6 +49,34 @@ def get_db_connection():
         return conn
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")
+
+
+def _json_dumps_if_present(payload: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Serialize dict payloads for JSONB columns."""
+    if payload is None:
+        return None
+    return json.dumps(payload)
+
+
+def _get_recent_decision_id_for_pending(cursor, pending_promotion_id: int) -> Optional[int]:
+    """
+    Best-effort link between pending promotion and decision log.
+    Uses latest create_promotion/promotion_design decision for same SKU/store.
+    """
+    cursor.execute(
+        """
+        SELECT ad.id
+        FROM agent_decisions ad
+        JOIN pending_promotions pp ON pp.sku_id = ad.sku_id AND pp.store_id = ad.store_id
+        WHERE pp.id = %s
+          AND ad.decision_type IN ('create_promotion', 'promotion_design')
+        ORDER BY ad.created_at DESC
+        LIMIT 1
+        """,
+        (pending_promotion_id,),
+    )
+    row = cursor.fetchone()
+    return row["id"] if row else None
 
 
 # Health check endpoint
@@ -100,6 +131,30 @@ def execute_tool(request: ToolRequest):
             result = approve_promotion(**parameters)
         elif tool_name == "reject_promotion":
             result = reject_promotion(**parameters)
+        elif tool_name == "create_decision_prior":
+            result = create_decision_prior(**parameters)
+        elif tool_name == "get_latest_decision_prior":
+            result = get_latest_decision_prior(**parameters)
+        elif tool_name == "list_decision_priors":
+            result = list_decision_priors(**parameters)
+        elif tool_name == "create_approval_feedback":
+            result = create_approval_feedback(**parameters)
+        elif tool_name == "get_approval_feedback":
+            result = get_approval_feedback(**parameters)
+        elif tool_name == "log_optimization_iteration":
+            result = log_optimization_iteration(**parameters)
+        elif tool_name == "get_optimization_iterations":
+            result = get_optimization_iterations(**parameters)
+        elif tool_name == "log_evaluator_score":
+            result = log_evaluator_score(**parameters)
+        elif tool_name == "get_evaluator_scores":
+            result = get_evaluator_scores(**parameters)
+        elif tool_name == "upsert_embedding_metadata":
+            result = upsert_embedding_metadata(**parameters)
+        elif tool_name == "get_embedding_metadata":
+            result = get_embedding_metadata(**parameters)
+        elif tool_name == "get_historical_promotion_cases":
+            result = get_historical_promotion_cases(**parameters)
         else:
             raise ValueError(f"Unknown tool: {tool_name}")
 
@@ -747,6 +802,55 @@ def approve_promotion(
     )
 
     pending_result = cursor.fetchone()
+    feedback_id = None
+    if FEATURE_FLAGS["enable_approval_learning"]:
+        decision_id = _get_recent_decision_id_for_pending(cursor, pending_promotion_id)
+        context_payload = {
+            "promotion_type": pending["promotion_type"],
+            "discount_type": pending["discount_type"],
+            "discount_value": float(pending["discount_value"]),
+            "original_price": float(pending["original_price"]),
+            "promotional_price": float(pending["promotional_price"]),
+            "margin_percent": float(pending["margin_percent"]),
+            "expected_units_sold": pending.get("expected_units_sold"),
+            "expected_revenue": float(pending["expected_revenue"]) if pending.get("expected_revenue") is not None else None,
+            "agent_reasoning": pending.get("agent_reasoning"),
+            "market_data": pending.get("market_data"),
+        }
+
+        cursor.execute(
+            """
+            INSERT INTO approval_feedback (
+                pending_promotion_id, promotion_id, decision_id,
+                sku_id, store_id, reviewer_outcome, reviewed_by,
+                reviewer_notes, decision_context, feedback_payload
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            )
+            RETURNING id
+            """,
+            (
+                pending_promotion_id,
+                promotion_result["id"],
+                decision_id,
+                pending["sku_id"],
+                pending["store_id"],
+                "approved",
+                reviewed_by,
+                reviewer_notes,
+                _json_dumps_if_present(context_payload),
+                _json_dumps_if_present(
+                    {
+                        "outcome": "approved",
+                        "approved_promotion_id": promotion_result["id"],
+                        "approved_promotion_code": promotion_result["promotion_code"],
+                    }
+                ),
+            ),
+        )
+        feedback_row = cursor.fetchone()
+        feedback_id = feedback_row["id"] if feedback_row else None
+
     conn.commit()
 
     cursor.close()
@@ -758,6 +862,7 @@ def approve_promotion(
         "promotion_id": promotion_result["id"],
         "promotion_code": promotion_result["promotion_code"],
         "promotion_status": promotion_result["status"],
+        "approval_feedback_id": feedback_id,
     }
 
 
@@ -769,6 +874,16 @@ def reject_promotion(
     """Reject a pending promotion"""
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    cursor.execute(
+        "SELECT * FROM pending_promotions WHERE id = %s AND status = 'pending'",
+        (pending_promotion_id,),
+    )
+    pending = cursor.fetchone()
+    if not pending:
+        cursor.close()
+        conn.close()
+        raise ValueError(f"Pending promotion {pending_promotion_id} not found or already processed")
 
     query = """
         UPDATE pending_promotions
@@ -789,12 +904,599 @@ def reject_promotion(
         conn.close()
         raise ValueError(f"Pending promotion {pending_promotion_id} not found or already processed")
 
+    feedback_id = None
+    if FEATURE_FLAGS["enable_approval_learning"]:
+        decision_id = _get_recent_decision_id_for_pending(cursor, pending_promotion_id)
+        context_payload = {
+            "promotion_type": pending["promotion_type"],
+            "discount_type": pending["discount_type"],
+            "discount_value": float(pending["discount_value"]),
+            "original_price": float(pending["original_price"]),
+            "promotional_price": float(pending["promotional_price"]),
+            "margin_percent": float(pending["margin_percent"]),
+            "expected_units_sold": pending.get("expected_units_sold"),
+            "expected_revenue": float(pending["expected_revenue"]) if pending.get("expected_revenue") is not None else None,
+            "agent_reasoning": pending.get("agent_reasoning"),
+            "market_data": pending.get("market_data"),
+        }
+
+        cursor.execute(
+            """
+            INSERT INTO approval_feedback (
+                pending_promotion_id, promotion_id, decision_id,
+                sku_id, store_id, reviewer_outcome, reviewed_by,
+                reviewer_notes, decision_context, feedback_payload
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            )
+            RETURNING id
+            """,
+            (
+                pending_promotion_id,
+                None,
+                decision_id,
+                pending["sku_id"],
+                pending["store_id"],
+                "rejected",
+                reviewed_by,
+                reviewer_notes,
+                _json_dumps_if_present(context_payload),
+                _json_dumps_if_present(
+                    {
+                        "outcome": "rejected",
+                        "rejection_reason": reviewer_notes,
+                    }
+                ),
+            ),
+        )
+        feedback_row = cursor.fetchone()
+        feedback_id = feedback_row["id"] if feedback_row else None
+
     conn.commit()
 
     cursor.close()
     conn.close()
 
-    return dict(result) if result else {}
+    result_payload = dict(result) if result else {}
+    if feedback_id is not None:
+        result_payload["approval_feedback_id"] = feedback_id
+    return result_payload
+
+
+def create_decision_prior(
+    prior_payload: Dict,
+    sku_id: int = None,
+    store_id: int = None,
+    source_decision_id: int = None,
+    source_promotion_id: int = None,
+    prior_version: int = 1,
+    success_probability: float = None,
+    confidence_score: float = None,
+    expected_roi_band: str = None,
+    risk_flags: Dict = None,
+    generated_by: str = "decision_learning_service",
+) -> Dict:
+    """Persist a learned decision prior."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    cursor.execute(
+        """
+        INSERT INTO decision_priors (
+            sku_id, store_id, source_decision_id, source_promotion_id,
+            prior_version, success_probability, confidence_score,
+            expected_roi_band, risk_flags, prior_payload, generated_by
+        ) VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+        )
+        RETURNING id, generated_at
+        """,
+        (
+            sku_id,
+            store_id,
+            source_decision_id,
+            source_promotion_id,
+            prior_version,
+            success_probability,
+            confidence_score,
+            expected_roi_band,
+            _json_dumps_if_present(risk_flags),
+            json.dumps(prior_payload),
+            generated_by,
+        ),
+    )
+    row = cursor.fetchone()
+    conn.commit()
+
+    cursor.close()
+    conn.close()
+    return dict(row) if row else {}
+
+
+def get_latest_decision_prior(
+    sku_id: int = None,
+    store_id: int = None,
+    max_age_hours: int = 720,
+) -> Dict:
+    """Get the most recent decision prior for a given scope."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    query = """
+        SELECT *
+        FROM decision_priors
+        WHERE generated_at >= NOW() - (%s * INTERVAL '1 hour')
+    """
+    params: List[Any] = [max_age_hours]
+
+    if sku_id is not None:
+        query += " AND sku_id = %s"
+        params.append(sku_id)
+    if store_id is not None:
+        query += " AND store_id = %s"
+        params.append(store_id)
+
+    query += " ORDER BY generated_at DESC, id DESC LIMIT 1"
+    cursor.execute(query, params)
+    row = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+    return dict(row) if row else {}
+
+
+def list_decision_priors(
+    sku_id: int = None,
+    store_id: int = None,
+    limit: int = 25,
+) -> List[Dict]:
+    """List decision priors for diagnostics and analysis."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    query = """
+        SELECT *
+        FROM decision_priors
+        WHERE 1=1
+    """
+    params: List[Any] = []
+
+    if sku_id is not None:
+        query += " AND sku_id = %s"
+        params.append(sku_id)
+    if store_id is not None:
+        query += " AND store_id = %s"
+        params.append(store_id)
+
+    query += " ORDER BY generated_at DESC, id DESC LIMIT %s"
+    params.append(limit)
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def create_approval_feedback(
+    reviewer_outcome: str,
+    reviewed_by: str,
+    pending_promotion_id: int = None,
+    promotion_id: int = None,
+    decision_id: int = None,
+    sku_id: int = None,
+    store_id: int = None,
+    reviewer_notes: str = None,
+    decision_context: Dict = None,
+    feedback_payload: Dict = None,
+) -> Dict:
+    """Insert an approval feedback signal."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    cursor.execute(
+        """
+        INSERT INTO approval_feedback (
+            pending_promotion_id, promotion_id, decision_id, sku_id, store_id,
+            reviewer_outcome, reviewed_by, reviewer_notes, decision_context, feedback_payload
+        ) VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+        )
+        RETURNING id, created_at
+        """,
+        (
+            pending_promotion_id,
+            promotion_id,
+            decision_id,
+            sku_id,
+            store_id,
+            reviewer_outcome,
+            reviewed_by,
+            reviewer_notes,
+            _json_dumps_if_present(decision_context),
+            _json_dumps_if_present(feedback_payload),
+        ),
+    )
+
+    row = cursor.fetchone()
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return dict(row) if row else {}
+
+
+def get_approval_feedback(
+    reviewer_outcome: str = None,
+    sku_id: int = None,
+    store_id: int = None,
+    days: int = 90,
+    limit: int = 100,
+) -> List[Dict]:
+    """Retrieve approval feedback signals."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    query = """
+        SELECT *
+        FROM approval_feedback
+        WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
+    """
+    params: List[Any] = [days]
+
+    if reviewer_outcome:
+        query += " AND reviewer_outcome = %s"
+        params.append(reviewer_outcome)
+    if sku_id is not None:
+        query += " AND sku_id = %s"
+        params.append(sku_id)
+    if store_id is not None:
+        query += " AND store_id = %s"
+        params.append(store_id)
+
+    query += " ORDER BY created_at DESC, id DESC LIMIT %s"
+    params.append(limit)
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def log_optimization_iteration(
+    iteration_index: int,
+    objective_name: str,
+    candidate_offer: Dict,
+    objective_score: float = None,
+    sku_id: int = None,
+    store_id: int = None,
+    decision_id: int = None,
+    promotion_id: int = None,
+    constraints_checked: Dict = None,
+    is_selected: bool = False,
+) -> Dict:
+    """Log one iteration from offer optimization."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    cursor.execute(
+        """
+        INSERT INTO optimization_iterations (
+            decision_id, promotion_id, sku_id, store_id,
+            iteration_index, objective_name, objective_score,
+            candidate_offer, constraints_checked, is_selected
+        ) VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+        )
+        RETURNING id, created_at
+        """,
+        (
+            decision_id,
+            promotion_id,
+            sku_id,
+            store_id,
+            iteration_index,
+            objective_name,
+            objective_score,
+            json.dumps(candidate_offer),
+            _json_dumps_if_present(constraints_checked),
+            is_selected,
+        ),
+    )
+
+    row = cursor.fetchone()
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return dict(row) if row else {}
+
+
+def get_optimization_iterations(
+    sku_id: int = None,
+    store_id: int = None,
+    decision_id: int = None,
+    limit: int = 100,
+) -> List[Dict]:
+    """Get optimization loop history."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    query = """
+        SELECT *
+        FROM optimization_iterations
+        WHERE 1=1
+    """
+    params: List[Any] = []
+
+    if sku_id is not None:
+        query += " AND sku_id = %s"
+        params.append(sku_id)
+    if store_id is not None:
+        query += " AND store_id = %s"
+        params.append(store_id)
+    if decision_id is not None:
+        query += " AND decision_id = %s"
+        params.append(decision_id)
+
+    query += " ORDER BY created_at DESC, iteration_index DESC LIMIT %s"
+    params.append(limit)
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def log_evaluator_score(
+    evaluator_name: str,
+    score: float,
+    rationale: str,
+    sku_id: int = None,
+    store_id: int = None,
+    decision_id: int = None,
+    promotion_id: int = None,
+    risk_flags: Dict = None,
+    recommendation: str = None,
+    arbitration_decision: str = None,
+) -> Dict:
+    """Log evaluator output from multi-critic stage."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    cursor.execute(
+        """
+        INSERT INTO evaluator_scores (
+            decision_id, promotion_id, sku_id, store_id,
+            evaluator_name, score, rationale, risk_flags,
+            recommendation, arbitration_decision
+        ) VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+        )
+        RETURNING id, created_at
+        """,
+        (
+            decision_id,
+            promotion_id,
+            sku_id,
+            store_id,
+            evaluator_name,
+            score,
+            rationale,
+            _json_dumps_if_present(risk_flags),
+            recommendation,
+            arbitration_decision,
+        ),
+    )
+
+    row = cursor.fetchone()
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return dict(row) if row else {}
+
+
+def get_evaluator_scores(
+    sku_id: int = None,
+    store_id: int = None,
+    decision_id: int = None,
+    evaluator_name: str = None,
+    limit: int = 100,
+) -> List[Dict]:
+    """Fetch evaluator outputs for observability."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    query = """
+        SELECT *
+        FROM evaluator_scores
+        WHERE 1=1
+    """
+    params: List[Any] = []
+
+    if sku_id is not None:
+        query += " AND sku_id = %s"
+        params.append(sku_id)
+    if store_id is not None:
+        query += " AND store_id = %s"
+        params.append(store_id)
+    if decision_id is not None:
+        query += " AND decision_id = %s"
+        params.append(decision_id)
+    if evaluator_name is not None:
+        query += " AND evaluator_name = %s"
+        params.append(evaluator_name)
+
+    query += " ORDER BY created_at DESC, id DESC LIMIT %s"
+    params.append(limit)
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def upsert_embedding_metadata(
+    entity_type: str,
+    entity_id: int,
+    sku_id: int = None,
+    store_id: int = None,
+    decision_id: int = None,
+    promotion_id: int = None,
+    embedding_provider: str = None,
+    collection_name: str = None,
+    vector_key: str = None,
+    source_payload: Dict = None,
+    summary: str = None,
+) -> Dict:
+    """Persist metadata describing indexed vectors."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    cursor.execute(
+        """
+        INSERT INTO embeddings_index_metadata (
+            entity_type, entity_id, sku_id, store_id, decision_id, promotion_id,
+            embedding_provider, collection_name, vector_key, source_payload, summary
+        ) VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+        )
+        RETURNING id, indexed_at
+        """,
+        (
+            entity_type,
+            entity_id,
+            sku_id,
+            store_id,
+            decision_id,
+            promotion_id,
+            embedding_provider,
+            collection_name,
+            vector_key,
+            _json_dumps_if_present(source_payload),
+            summary,
+        ),
+    )
+
+    row = cursor.fetchone()
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return dict(row) if row else {}
+
+
+def get_embedding_metadata(
+    entity_type: str = None,
+    sku_id: int = None,
+    store_id: int = None,
+    limit: int = 100,
+) -> List[Dict]:
+    """Fetch embedding index metadata for diagnostics."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    query = """
+        SELECT *
+        FROM embeddings_index_metadata
+        WHERE 1=1
+    """
+    params: List[Any] = []
+
+    if entity_type is not None:
+        query += " AND entity_type = %s"
+        params.append(entity_type)
+    if sku_id is not None:
+        query += " AND sku_id = %s"
+        params.append(sku_id)
+    if store_id is not None:
+        query += " AND store_id = %s"
+        params.append(store_id)
+
+    query += " ORDER BY indexed_at DESC, id DESC LIMIT %s"
+    params.append(limit)
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def get_historical_promotion_cases(
+    sku_id: int,
+    store_id: int = None,
+    limit: int = 5,
+) -> List[Dict]:
+    """
+    Fetch historically similar cases (same SKU first, then same category).
+    This provides a deterministic fallback when vector retrieval is unavailable.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    query = """
+        WITH target_sku AS (
+            SELECT id, category
+            FROM skus
+            WHERE id = %s
+        ),
+        perf AS (
+            SELECT
+                promotion_id,
+                AVG(COALESCE(performance_ratio, 0)) AS avg_performance_ratio,
+                MAX(check_time) AS last_check_time
+            FROM promotion_performance
+            GROUP BY promotion_id
+        )
+        SELECT
+            p.id AS promotion_id,
+            p.sku_id,
+            p.store_id,
+            s.category,
+            p.promotion_type,
+            p.discount_type,
+            p.discount_value,
+            p.original_price,
+            p.promotional_price,
+            p.margin_percent,
+            p.expected_units_sold,
+            p.expected_revenue,
+            p.actual_units_sold,
+            p.actual_revenue,
+            p.status,
+            p.reason,
+            p.created_at,
+            COALESCE(perf.avg_performance_ratio, 0) AS avg_performance_ratio,
+            CASE WHEN p.sku_id = %s THEN 1 ELSE 0 END AS sku_similarity,
+            CASE WHEN s.category = (SELECT category FROM target_sku) THEN 1 ELSE 0 END AS category_similarity
+        FROM promotions p
+        JOIN skus s ON s.id = p.sku_id
+        LEFT JOIN perf ON perf.promotion_id = p.id
+        WHERE p.status IN ('active', 'completed', 'retracted')
+          AND (
+              p.sku_id = %s
+              OR s.category = (SELECT category FROM target_sku)
+          )
+    """
+    params: List[Any] = [sku_id, sku_id, sku_id]
+
+    if store_id is not None:
+        query += " AND p.store_id = %s"
+        params.append(store_id)
+
+    query += """
+        ORDER BY sku_similarity DESC, category_similarity DESC, avg_performance_ratio DESC, p.created_at DESC
+        LIMIT %s
+    """
+    params.append(limit)
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+    return [dict(row) for row in rows]
 
 
 # ============================================================================

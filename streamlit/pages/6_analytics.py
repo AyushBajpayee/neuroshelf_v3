@@ -1,9 +1,11 @@
 import streamlit as st
 import sys
 sys.path.append('..')
-from app import get_db_connection
+from common import get_db_connection, render_sidebar
 import pandas as pd
 import plotly.express as px
+
+render_sidebar(show_navigation=False, key_prefix="analytics")
 
 st.title("📈 Analytics & Insights")
 st.markdown("---")

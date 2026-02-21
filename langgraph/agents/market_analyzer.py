@@ -12,6 +12,14 @@ import tiktoken
 import json
 from runtime_tracker import set_current_agent
 
+
+def _safe_parse_json(raw_text: str) -> dict:
+    try:
+        return json.loads(raw_text)
+    except Exception:
+        return {"reasoning": raw_text, "should_act": False, "opportunity_score": 0, "key_factors": []}
+
+
 def analyze_market_node(state: dict) -> dict:
     """Analyze market conditions and decide if action is needed"""
     set_current_agent(
@@ -28,6 +36,8 @@ def analyze_market_node(state: dict) -> dict:
         competitors = state.get("competitor_data", [])
         social = state.get("social_data", {})
         sell_through = state.get("sell_through_rate", {})
+        similar_cases = state.get("similar_cases", [])
+        retrieval_stats = state.get("retrieval_stats", {})
 
         # Create analysis prompt
         analysis_prompt = f"""
@@ -50,6 +60,11 @@ Analyze the following market data and determine if we should take action (create
 - Has Buzz: {social.get('has_buzz', False)}
 - Sentiment Score: {social.get('overall_sentiment', 50)}/100
 - Trending Topics: {social.get('trending_topics', [])}
+
+**Similar Historical Cases (RAG):**
+- Retrieval Method: {retrieval_stats.get('method', 'none')}
+- Retrieval Hits: {retrieval_stats.get('hits', 0)}
+- Cases: {similar_cases[:3]}
 
 **Decision Criteria:**
 1. Excess inventory (>80% capacity) + demand opportunity = CREATE PROMOTION
@@ -98,12 +113,15 @@ Respond with JSON:
             context={"store_id": state["store_id"]}
         )
         print(f'Token usage logged for market analysis agent.')
-        should_act = "true" in response.content.lower() and "should_act" in response.content.lower()
+        parsed_response = _safe_parse_json(response.content)
+        should_act = bool(parsed_response.get("should_act", False))
 
         state["should_act"] = should_act
         state["analysis_result"] = {
-            "reasoning": response.content,
+            "reasoning": parsed_response.get("reasoning", response.content),
             "should_act": should_act,
+            "opportunity_score": parsed_response.get("opportunity_score"),
+            "key_factors": parsed_response.get("key_factors", []),
         }
 
         # Log decision
@@ -116,11 +134,12 @@ Respond with JSON:
                 "store_id": state["store_id"],
                 "decision_type": "market_analysis",
                 "prompt_fed": input_text,
-                "reasoning": json.loads(response.content)['reasoning'],
+                "reasoning": parsed_response.get("reasoning", response.content),
                 "data_used": {
                     "inventory_status": inventory.get("stock_status"),
                     "temperature": weather.get("temperature_celsius"),
                     "competitor_count": len(competitors),
+                    "retrieval_stats": retrieval_stats,
                 },
                 "decision_outcome": "act" if should_act else "no_action",
             },

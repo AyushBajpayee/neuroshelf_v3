@@ -3,10 +3,15 @@ Data Collection Agent
 Gathers all necessary data for pricing decisions
 """
 
+import config
 from langchain_core.messages import HumanMessage
 from mcp_client import mcp_client
 from token_tracker import token_tracker
 from runtime_tracker import set_current_agent
+from services.rag_similarity_service import SimilarityRetrievalService
+
+
+similarity_service = SimilarityRetrievalService(mcp_client)
 
 
 def collect_data_node(state: dict) -> dict:
@@ -57,6 +62,22 @@ def collect_data_node(state: dict) -> dict:
         state["competitor_data"] = competitor
         state["social_data"] = social
         state["sell_through_rate"] = sell_through
+        state["similar_cases"] = []
+        state["retrieval_stats"] = {
+            "enabled": config.FEATURE_FLAGS["enable_rag_similarity"],
+            "method": "disabled" if not config.FEATURE_FLAGS["enable_rag_similarity"] else "pending",
+            "hits": 0,
+            "misses": 0,
+        }
+        state["rag_similarity_plan"] = []
+
+        if config.FEATURE_FLAGS["enable_rag_similarity"]:
+            retrieval = similarity_service.retrieve_similar_cases(state)
+            state["similar_cases"] = retrieval.get("cases", [])
+            state["retrieval_stats"] = retrieval.get("stats", state["retrieval_stats"])
+            state["rag_similarity_plan"] = retrieval.get("plan", [])
+            if state["rag_similarity_plan"]:
+                print("  [Data Collector] RAG fallback plan generated (vector store unavailable).")
 
         state["messages"].append(
             HumanMessage(content=f"Data collected successfully for SKU {sku_id} at Store {store_id}")
@@ -80,6 +101,9 @@ def collect_data_node(state: dict) -> dict:
                         "weather": state.get("weather_data", {}),
                         "competitor": state.get("competitor_data", {}),
                         "social": state.get("social_data", {}),
+                        "retrieval_stats": state.get("retrieval_stats", {}),
+                        "similar_cases_count": len(state.get("similar_cases", [])),
+                        "rag_plan": state.get("rag_similarity_plan", []),
                     },
                     "decision_outcome": "no_action",
                 },
