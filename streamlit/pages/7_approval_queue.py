@@ -7,6 +7,11 @@ import streamlit as st
 import requests
 import json
 from datetime import datetime
+import sys
+sys.path.append('..')
+from common import render_sidebar
+
+render_sidebar(show_navigation=False, key_prefix="approval_queue")
 
 st.title("✅ Promotion Approval Queue")
 st.markdown("Review and approve/reject agent-recommended promotions")

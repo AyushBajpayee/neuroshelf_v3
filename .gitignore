@@ -1,6 +1,5 @@
 .venv
 .env
-scratchpad.txt
 .idea/
 *.iml
 *.iws

@@ -249,6 +249,93 @@ CREATE TABLE pending_promotions (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Decision Priors generated from historical learning
+CREATE TABLE decision_priors (
+    id SERIAL PRIMARY KEY,
+    sku_id INTEGER REFERENCES skus(id),
+    store_id INTEGER REFERENCES stores(id),
+    source_decision_id INTEGER REFERENCES agent_decisions(id),
+    source_promotion_id INTEGER REFERENCES promotions(id),
+    prior_version INTEGER NOT NULL DEFAULT 1,
+    success_probability DECIMAL(5, 4),
+    confidence_score DECIMAL(5, 4),
+    expected_roi_band VARCHAR(100),
+    risk_flags JSONB,
+    prior_payload JSONB NOT NULL,
+    generated_by VARCHAR(100) DEFAULT 'decision_learning_service',
+    generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Human approval/rejection signals used for learning
+CREATE TABLE approval_feedback (
+    id SERIAL PRIMARY KEY,
+    pending_promotion_id INTEGER REFERENCES pending_promotions(id),
+    promotion_id INTEGER REFERENCES promotions(id),
+    decision_id INTEGER REFERENCES agent_decisions(id),
+    sku_id INTEGER REFERENCES skus(id),
+    store_id INTEGER REFERENCES stores(id),
+    reviewer_outcome VARCHAR(50) NOT NULL, -- 'approved' | 'rejected'
+    reviewed_by VARCHAR(100) NOT NULL,
+    reviewer_notes TEXT,
+    decision_context JSONB,
+    feedback_payload JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Iterative optimization trace for offer optimization loop
+CREATE TABLE optimization_iterations (
+    id SERIAL PRIMARY KEY,
+    decision_id INTEGER REFERENCES agent_decisions(id),
+    promotion_id INTEGER REFERENCES promotions(id),
+    sku_id INTEGER REFERENCES skus(id),
+    store_id INTEGER REFERENCES stores(id),
+    iteration_index INTEGER NOT NULL,
+    objective_name VARCHAR(100) NOT NULL,
+    objective_score DECIMAL(10, 4),
+    candidate_offer JSONB NOT NULL,
+    constraints_checked JSONB,
+    is_selected BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Multi-critic evaluator outputs and arbitration
+CREATE TABLE evaluator_scores (
+    id SERIAL PRIMARY KEY,
+    decision_id INTEGER REFERENCES agent_decisions(id),
+    promotion_id INTEGER REFERENCES promotions(id),
+    sku_id INTEGER REFERENCES skus(id),
+    store_id INTEGER REFERENCES stores(id),
+    evaluator_name VARCHAR(100) NOT NULL,
+    score DECIMAL(6, 3) NOT NULL,
+    rationale TEXT NOT NULL,
+    risk_flags JSONB,
+    recommendation VARCHAR(50), -- 'approve' | 'revise' | 'reject'
+    arbitration_decision VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Metadata for vector index artifacts and embedded entities
+CREATE TABLE embeddings_index_metadata (
+    id SERIAL PRIMARY KEY,
+    entity_type VARCHAR(100) NOT NULL, -- sku | promotion | decision | feedback | performance_summary
+    entity_id BIGINT NOT NULL,
+    sku_id INTEGER REFERENCES skus(id),
+    store_id INTEGER REFERENCES stores(id),
+    decision_id INTEGER REFERENCES agent_decisions(id),
+    promotion_id INTEGER REFERENCES promotions(id),
+    embedding_provider VARCHAR(100),
+    collection_name VARCHAR(100),
+    vector_key VARCHAR(200),
+    source_payload JSONB,
+    summary TEXT,
+    indexed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Simulator State (for persistence)
 CREATE TABLE simulator_state (
     id SERIAL PRIMARY KEY,
@@ -274,6 +361,15 @@ CREATE INDEX idx_token_usage_sku ON token_usage(sku_id, timestamp);
 CREATE INDEX idx_agent_decisions_sku ON agent_decisions(sku_id, created_at);
 CREATE INDEX idx_pending_promotions_status ON pending_promotions(status, created_at);
 CREATE INDEX idx_pending_promotions_sku ON pending_promotions(sku_id, store_id);
+CREATE INDEX idx_decision_priors_scope ON decision_priors(sku_id, store_id, generated_at DESC);
+CREATE INDEX idx_decision_priors_source ON decision_priors(source_decision_id, source_promotion_id);
+CREATE INDEX idx_approval_feedback_outcome ON approval_feedback(reviewer_outcome, created_at DESC);
+CREATE INDEX idx_approval_feedback_scope ON approval_feedback(sku_id, store_id, created_at DESC);
+CREATE INDEX idx_optimization_iterations_scope ON optimization_iterations(sku_id, store_id, created_at DESC);
+CREATE INDEX idx_evaluator_scores_scope ON evaluator_scores(sku_id, store_id, created_at DESC);
+CREATE INDEX idx_evaluator_scores_decision ON evaluator_scores(decision_id, evaluator_name);
+CREATE INDEX idx_embeddings_index_entity ON embeddings_index_metadata(entity_type, entity_id);
+CREATE INDEX idx_embeddings_index_scope ON embeddings_index_metadata(sku_id, store_id, indexed_at DESC);
 
 -- ============================================================================
 -- VIEWS FOR COMMON QUERIES
@@ -427,6 +523,15 @@ CREATE TRIGGER update_inventory_updated_at BEFORE UPDATE ON inventory
 CREATE TRIGGER update_promotions_updated_at BEFORE UPDATE ON promotions
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+CREATE TRIGGER update_decision_priors_updated_at BEFORE UPDATE ON decision_priors
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_approval_feedback_updated_at BEFORE UPDATE ON approval_feedback
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_embeddings_index_metadata_updated_at BEFORE UPDATE ON embeddings_index_metadata
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- Function to calculate sell-through rate
 CREATE OR REPLACE FUNCTION calculate_sell_through_rate(
     p_sku_id INTEGER,
@@ -484,6 +589,6 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO pricing_user;
 
 -- Log schema initialization
 INSERT INTO simulator_state (simulator_type, state_data)
-VALUES ('schema_version', jsonb_build_object('version', '1.0.0', 'initialized_at', CURRENT_TIMESTAMP));
+VALUES ('schema_version', jsonb_build_object('version', '1.1.0', 'initialized_at', CURRENT_TIMESTAMP));
 
 COMMENT ON DATABASE pricing_intelligence IS 'Autonomous Pricing Intelligence and Promotion Management System';

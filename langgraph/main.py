@@ -22,6 +22,7 @@ import config
 from graph import create_monitoring_graph, create_pricing_graph
 from mcp_client import mcp_client
 from runtime_tracker import clear_current_agent, get_runtime_state, set_current_agent
+from status_targets import compute_status_targets
 
 DEFAULT_SKUS = list(range(1, 21))
 DEFAULT_STORES = list(range(1, 6))
@@ -95,11 +96,14 @@ def get_status_payload() -> Dict:
     """Build serializable status payload."""
     runtime_state = get_runtime_state()
     total_targets = len(AGENT_TARGETS)
-    next_target = None
     next_index = agent_state["next_target_index"]
-    if total_targets > 0 and next_index < total_targets:
-        sku_id, store_id = AGENT_TARGETS[next_index]
-        next_target = {"sku_id": sku_id, "store_id": store_id}
+    target_fields = compute_status_targets(
+        targets=AGENT_TARGETS,
+        next_target_index=next_index,
+        in_progress_target=agent_state.get("in_progress_target"),
+        runtime_sku_id=runtime_state.get("sku_id"),
+        runtime_store_id=runtime_state.get("store_id"),
+    )
 
     task = getattr(app.state, "agent_loop_task", None)
     worker_running = bool(task and not task.done())
@@ -111,7 +115,9 @@ def get_status_payload() -> Dict:
         "cycles_completed": agent_state["cycles_completed"],
         "next_target_index": next_index,
         "targets_in_cycle": total_targets,
-        "next_target": next_target,
+        "next_target": target_fields["next_target"],
+        "current_target_effective": target_fields["current_target_effective"],
+        "next_target_after_current": target_fields["next_target_after_current"],
         "last_processed_target": agent_state["last_processed_target"],
         "in_progress_target": agent_state["in_progress_target"],
         "cycle_started_at": agent_state["cycle_started_at"],
@@ -121,6 +127,7 @@ def get_status_payload() -> Dict:
         "current_promotion_id": runtime_state.get("promotion_id"),
         "current_agent_updated_at": runtime_state.get("updated_at"),
         "errors": agent_state["errors"][-10:],
+        "feature_flags": config.FEATURE_FLAGS,
     }
 
 
@@ -203,6 +210,14 @@ def run_pricing_analysis(sku_id: int, store_id: int) -> Dict:
             "store_id": store_id,
             "messages": [],
             "should_act": False,
+            "decision_priors": {},
+            "similar_cases": [],
+            "retrieval_stats": {},
+            "rag_similarity_plan": [],
+            "optimization_result": {},
+            "optimization_iterations": [],
+            "critic_evaluations": [],
+            "critic_decision": {},
         }
 
         result = pricing_graph.invoke(initial_state)
@@ -360,8 +375,13 @@ async def startup_event():
         print(f"  - Max Discount: {config.AGENT_CONFIG['max_discount_percent']}%")
         print(f"  - Auto Retract Threshold: {config.AGENT_CONFIG['auto_retract_threshold']}")
         print(f"  - Manual Approval Required: {config.AGENT_CONFIG['require_manual_approval']}")
+        print(f"  - Optimization Max Iterations: {config.AGENT_CONFIG['optimization_max_iterations']}")
+        print(f"  - Optimization Objective: {config.AGENT_CONFIG['optimization_objective']}")
         print(f"  - Auto Start Enabled: {AUTO_START_ENABLED}")
         print(f"  - Target Count: {len(AGENT_TARGETS)}")
+        print("  - Feature Flags:")
+        for name, enabled in config.FEATURE_FLAGS.items():
+            print(f"      * {name}: {enabled}")
 
         app.state.agent_loop_task = asyncio.create_task(agent_loop())
 

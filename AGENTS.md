@@ -19,7 +19,7 @@ Use this order when information conflicts:
 When docs and code disagree, follow code and update docs.
 
 ## Architecture Snapshot
-Docker services (8):
+Docker services (8 core + 1 optional):
 - `postgres` -> host port `65432` mapped to container `5432`
 - `mcp-postgres` -> `3000`
 - `mcp-weather` -> `3001`
@@ -28,12 +28,14 @@ Docker services (8):
 - `langgraph-core` -> `8000`
 - `langgraph-studio` -> `8080`
 - `streamlit` -> `8501`
+- `chroma-db` (optional, `rag` profile) -> host `8004` mapped to container `8000`
 
 Key note: several docs still mention Postgres on host `5432`; current compose maps to `65432`.
 
 ## Startup And Dev Commands
 - `cp .env.example .env`
 - `docker-compose up --build`
+- `docker-compose --profile rag up -d chroma-db` (optional RAG vector service)
 - `docker-compose ps`
 - `docker-compose logs -f langgraph-core`
 - `docker-compose restart <service>`
@@ -50,6 +52,16 @@ Important toggles:
 - `AGENT_MIN_MARGIN_PERCENT`
 - `AGENT_MAX_DISCOUNT_PERCENT`
 - `AGENT_AUTO_RETRACT_THRESHOLD`
+- `OPTIMIZATION_MAX_ITERATIONS`
+- `OPTIMIZATION_OBJECTIVE`
+- `ENABLE_DECISION_LEARNING`
+- `ENABLE_OPTIMIZATION_LOOP`
+- `ENABLE_MULTI_CRITIC`
+- `ENABLE_APPROVAL_LEARNING`
+- `ENABLE_RAG_SIMILARITY`
+- `CRITIC_REVISE_THRESHOLD`
+- `CRITIC_REJECT_THRESHOLD`
+- `CHROMA_HOST`, `CHROMA_PORT`, `CHROMA_COLLECTION`, `RAG_RETRIEVAL_K`
 
 Model caveat:
 - `.env.example` sets `OPENAI_MODEL=gpt-5-mini`
@@ -65,17 +77,24 @@ Model caveat:
 - `mcp-servers/social-simulator/*`: trends/events simulation + DB writes
 - `langgraph/graph.py`: pricing + monitoring graphs
 - `langgraph/main.py`: FastAPI endpoints + background worker + pause/resume cursor
+- `langgraph/status_targets.py`: `/status` target pointer computation helpers
 - `langgraph/runtime_tracker.py`: thread-safe live runtime context (current agent/sku/store)
-- `langgraph/agents/*.py`: agent nodes (collect/analyze/price/design/execute/monitor)
+- `langgraph/services/decision_learning_service.py`: priors generation + persistence integration
+- `langgraph/services/rag_similarity_service.py`: vector retrieval + Postgres fallback + Chroma spin-up plan
+- `langgraph/agents/*.py`: agent nodes (collect/analyze/learn/price/design/optimize/critic/execute/monitor)
 - `streamlit/app.py` and `streamlit/pages/*`: UI and approval queue
+- `streamlit/common.py`: shared status/control sidebar (uses `next_target_after_current` fallback behavior)
 - `docs/MANUAL_APPROVAL_WORKFLOW.md`: human-in-the-loop workflow details
 
 ## Runtime Behavior Notes
 - Pricing graph flow:
-  `collect_data -> analyze_market -> (act?) -> design_pricing -> design_promotion -> execute_promotion`
+  `collect_data -> analyze_market -> (act?) -> load_decision_priors -> design_pricing -> design_promotion -> (optimize_offer?) -> (multi_critic_review?) -> execute_promotion`
 - Monitoring graph flow:
   `monitor -> (retract?) -> retract`
+- Multi-critic rejection branch: `multi_critic_review -> END` (no execution) when arbitration decides reject.
 - Manual approval mode routes promotions to `pending_promotions`; approvals create active records in `promotions`.
+- Approval learning mode stores approval/rejection signals in `approval_feedback`.
+- RAG similarity mode uses Chroma when available and falls back to Postgres historical similarity retrieval when unavailable.
 - Agent target scan order defaults to stores `[1..5]` x SKUs `[1..20]` (overridable via `SKUS_CONSIDERED` and `STORES_CONSIDERED`).
 - `langgraph/main.py` no longer hard-starts processing on startup; it starts paused unless `AGENT_AUTO_START=true`.
 - Agent processing is pause/resume capable and resumes from `next_target_index` in the current cycle.
@@ -85,6 +104,9 @@ Model caveat:
 - `POST /agent/start`: start or resume loop from current cursor
 - `POST /agent/stop`: pause loop without resetting cursor
 - `GET /status`: includes runtime metadata:
+  - `next_target` (legacy cursor target)
+  - `current_target_effective` (in-progress first, runtime fallback)
+  - `next_target_after_current` (human-friendly next item)
   - `in_progress_target`
   - `current_agent`
   - `current_sku_id`
@@ -95,22 +117,27 @@ Model caveat:
 - Sidebar Agent Control in `streamlit/app.py` supports:
   - Start/Stop buttons (calls `/agent/start` and `/agent/stop`)
   - cycle progress and completed cycles
-  - next target
+  - next target (prefers `next_target_after_current`, fallback to legacy `next_target`)
   - in-progress SKU/store and current agent name
 - `streamlit/pages/*.py` no longer call `st.set_page_config(...)`; page config is set only once in `streamlit/app.py` to avoid multipage import conflicts.
 
 ## Recent Implementation Notes
 - New file: `langgraph/runtime_tracker.py`.
+- New files: `langgraph/status_targets.py`, `langgraph/services/*`, `langgraph/agents/decision_learning.py`, `langgraph/agents/offer_optimizer.py`, `langgraph/agents/multi_critic.py`.
 - Agent nodes now set live agent context:
   - `Data Collection Agent`
   - `Market Analysis Agent`
+  - `Decision Learning Agent`
   - `Pricing Strategy Agent`
   - `Promotion Design Agent`
+  - `Offer Optimization Agent`
+  - `Multi-Critic Review Agent`
   - `Execution Agent`
   - `Monitoring Agent` / `Monitoring Agent (Retraction)`
 
 ## MCP Tool Surface (High Level)
 - Postgres MCP: inventory, sell-through, promotion CRUD, token logs, decision logs, pending approval tools
+- Postgres MCP (agentic extensions): decision priors, approval feedback, optimization iterations, evaluator scores, embedding metadata, historical similarity retrieval
 - Weather MCP: current weather, forecast, scenario override
 - Competitor MCP: current prices, history, trigger/end promo, strategy updates
 - Social MCP: trends, event calendar, sentiment, viral injection
@@ -121,6 +148,7 @@ Core tables:
 - `promotions`, `promotion_performance`, `pending_promotions`
 - `competitor_prices`, `external_factors`
 - `token_usage`, `agent_decisions`, `simulator_state`
+- `decision_priors`, `approval_feedback`, `optimization_iterations`, `evaluator_scores`, `embeddings_index_metadata`
 
 Useful views:
 - `v_inventory_status`

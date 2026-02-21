@@ -24,6 +24,7 @@ def design_promotion_node(state: dict) -> dict:
         pricing = state.get("pricing_strategy", {})
         weather = state.get("weather_data", {})
         social = state.get("social_data", {})
+        priors = state.get("decision_priors", {})
 
         # Determine promotion type based on conditions
         is_extreme_weather = weather.get("is_extreme", False)
@@ -45,12 +46,18 @@ def design_promotion_node(state: dict) -> dict:
         expected_units = int(current_avg_daily * promotion_multiplier * (duration_hours / 24))
 
         promo_price = float(pricing.get("promotional_price", 5.99))
+        discount_value = float(pricing.get("discount_percent", 20) or 0)
+        if discount_value > config.AGENT_CONFIG["max_discount_percent"]:
+            discount_value = config.AGENT_CONFIG["max_discount_percent"]
+            original_price = float(pricing.get("original_price", 6.99) or 6.99)
+            promo_price = round(original_price * (1 - discount_value / 100), 2)
+
         expected_revenue = expected_units * promo_price
 
         state["promotion_design"] = {
             "promotion_type": promo_type,
             "discount_type": "percentage",
-            "discount_value": pricing.get("discount_percent", 20),
+            "discount_value": discount_value,
             "original_price": pricing.get("original_price", 6.99),
             "promotional_price": promo_price,
             "margin_percent": pricing.get("margin_percent", 15),
@@ -79,6 +86,7 @@ def design_promotion_node(state: dict) -> dict:
                     "pricing_strategy": pricing,
                     "weather_data": weather,
                     "social_data": social,
+                    "decision_priors": priors,
                 },
                 "decision_outcome": "no_action",
             },

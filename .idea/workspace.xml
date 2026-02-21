@@ -6,9 +6,13 @@
   <component name="ChangeListManager">
     <list default="true" id="aa0b1272-975f-468e-94e2-1637bb97b1fe" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mcp-servers/competitor-simulator/simulator.py" beforeDir="false" afterPath="$PROJECT_DIR$/mcp-servers/competitor-simulator/simulator.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mcp-servers/social-simulator/simulator.py" beforeDir="false" afterPath="$PROJECT_DIR$/mcp-servers/social-simulator/simulator.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mcp-servers/weather-simulator/simulator.py" beforeDir="false" afterPath="$PROJECT_DIR$/mcp-servers/weather-simulator/simulator.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/streamlit/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/streamlit/app.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/streamlit/pages/2_sku_monitor.py" beforeDir="false" afterPath="$PROJECT_DIR$/streamlit/pages/2_sku_monitor.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/streamlit/pages/3_promo_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/streamlit/pages/3_promo_manager.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/streamlit/pages/4_token_cost_tracker.py" beforeDir="false" afterPath="$PROJECT_DIR$/streamlit/pages/4_token_cost_tracker.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/streamlit/pages/5_simulator_control.py" beforeDir="false" afterPath="$PROJECT_DIR$/streamlit/pages/5_simulator_control.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/streamlit/pages/6_analytics.py" beforeDir="false" afterPath="$PROJECT_DIR$/streamlit/pages/6_analytics.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/streamlit/pages/7_approval_queue.py" beforeDir="false" afterPath="$PROJECT_DIR$/streamlit/pages/7_approval_queue.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -17,7 +21,6 @@
   </component>
   <component name="EmbeddingIndexingInfo">
     <option name="cachedIndexableFilesCount" value="64" />
-    <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -42,30 +45,29 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "do__or__die__v2",
-    "ignore.virus.scanning.warn.message": "true",
-    "junie.onboarding.icon.badge.shown": "true",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "to.speed.mode.migration.done": "true",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;do__or__die__v4&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-c7e53b3be11b-JavaScript-PY-253.28294.336" />
         <option value="bundled-python-sdk-0978a7220b69-9867c7d4c0a4-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-253.28294.336" />
       </set>
     </attachedChunks>
@@ -82,6 +84,7 @@
       <workItem from="1765522589809" duration="598000" />
       <workItem from="1765634059469" duration="4985000" />
       <workItem from="1765901463762" duration="1920000" />
+      <workItem from="1771569936527" duration="14000" />
     </task>
     <servers />
   </component>

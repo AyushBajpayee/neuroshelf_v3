@@ -4,7 +4,7 @@ A fully autonomous AI-powered system that analyzes inventory, market conditions,
 
 ## 🏗️ Architecture Overview
 
-This application consists of 7 Docker containers working together:
+This application runs 8 core Docker services, with an optional 9th service for vector retrieval:
 
 1. **PostgreSQL** - Core database for inventory, pricing, promotions, and analytics
 2. **MCP Postgres Server** - Model Context Protocol server for database operations
@@ -14,6 +14,7 @@ This application consists of 7 Docker containers working together:
 6. **LangGraph Core** - Multi-agent AI system powered by GPT-5-mini
 7. **LangGraph Studio** - Graph visualization server
 8. **Streamlit UI** - Interactive web dashboard
+9. **Chroma DB (Optional)** - Vector database for similarity retrieval (`docker-compose --profile rag up -d chroma-db`)
 
 ## 🚀 Quick Start
 
@@ -57,18 +58,21 @@ docker-compose up --build
 
 - **Streamlit UI**: http://localhost:8501
 - **LangGraph Studio**: http://localhost:8080
-- **PostgreSQL**: localhost:95432 (user: `pricing_user`, password: `pricing_pass`, database: `pricing_intelligence`)
+- **PostgreSQL**: localhost:65432 (user: `pricing_user`, password: `pricing_pass`, database: `pricing_intelligence`)
 
 ## 📊 Features
 
 ### Autonomous Agent System
 
-The system uses 6 specialized agents coordinated by LangGraph:
+The system uses a core set of agents, with optional learning/deliberation stages coordinated by LangGraph:
 
 - **Data Collection Agent** - Gathers inventory, sales, weather, competitor prices, and social trends
 - **Market Analysis Agent** - Identifies demand patterns and opportunities
+- **Decision Learning Agent (Optional)** - Loads/generates behavioral priors from historical outcomes
 - **Pricing Strategy Agent** - Calculates optimal price points within margin constraints
 - **Promotion Design Agent** - Creates hyper-targeted offers (time, location, customer segment)
+- **Offer Optimization Agent (Optional)** - Iteratively improves offer parameters under constraints
+- **Multi-Critic Review Agent (Optional)** - Arbitrates between profit/growth/brand evaluators
 - **Execution Agent** - Deploys promotions and handles rollbacks
 - **Monitoring Agent** - Tracks performance and auto-retracts unprofitable promotions
 
@@ -111,7 +115,18 @@ All external data is simulated with realistic, controllable behavior:
 - **Manual Approval Workflow**: Review and approve/reject agent recommendations before execution
 - **Learning**: Performance tracking for continuous improvement
 
-## 🖥️ User Interface
+### Agent Learning & Deliberation
+
+When enabled via feature flags, the pricing graph now includes:
+
+- Behavioral memory (decision_priors) between market analysis and pricing strategy
+- Offer optimization loop with bounded iterations and per-iteration objective logging
+- Multi-critic review (Profit Guardian, Growth Hacker, Brand Guardian) with arbitration (approve, revise, reject)
+- Approval feedback learning signals captured from manual approvals/rejections
+- RAG similarity retrieval in data collection using Chroma when available, with Postgres fallback and a Chroma spin-up plan when unavailable
+- Additive `/status` pointers for live UI clarity: `current_target_effective` and `next_target_after_current`
+
+## User Interface
 
 ### Dashboard
 - Real-time SKU health indicators
@@ -167,7 +182,10 @@ All external data is simulated with realistic, controllable behavior:
 
 ### Agent Behavior
 
-Edit `langgraph/config.py` to adjust:
+Primary runtime controls are driven by `.env` and loaded in `langgraph/config.py`.
+Defaults preserve legacy single-pass behavior.
+
+Core controls:
 
 ```python
 AGENT_CONFIG = {
@@ -176,17 +194,53 @@ AGENT_CONFIG = {
     "max_discount_percent": 40,         # Maximum allowed discount
     "auto_retract_threshold": 0.5,      # Retract if performance < 50% expected
     "require_manual_approval": False,   # Set True to enable manual approval workflow
+    "optimization_max_iterations": 3,   # Used only when optimization loop is enabled
+    "optimization_objective": "profit_maximization",
 }
 ```
 
-**Manual Approval Workflow**: When `require_manual_approval` is set to `True`:
+Feature flags (all default to `false`):
+
+```bash
+ENABLE_DECISION_LEARNING=false
+ENABLE_OPTIMIZATION_LOOP=false
+ENABLE_MULTI_CRITIC=false
+ENABLE_APPROVAL_LEARNING=false
+ENABLE_RAG_SIMILARITY=false
+```
+
+Optional RAG/critic tuning:
+
+```bash
+CHROMA_HOST=chroma-db
+CHROMA_PORT=8000
+CHROMA_COLLECTION=promotion_similarity
+RAG_RETRIEVAL_K=5
+CRITIC_REVISE_THRESHOLD=65
+CRITIC_REJECT_THRESHOLD=45
+```
+
+RAG runtime note:
+- `ENABLE_RAG_SIMILARITY=true` is safe even when vector tooling is unavailable.
+- In that case, the system degrades gracefully to Postgres historical-case retrieval and logs a Chroma spin-up plan.
+
+**Manual Approval Workflow**: When `require_manual_approval=True`:
 - Agents will create promotion recommendations and save them to `pending_promotions` table
 - Promotions are NOT automatically activated
 - Human reviewers must approve/reject via the Approval Queue UI
 - Approved promotions are converted to active promotions
 - Rejected promotions are logged with reviewer notes for agent learning
+- If `ENABLE_APPROVAL_LEARNING=true`, approval/rejection signals are persisted in `approval_feedback`
 
 📘 **Full documentation**: See [docs/MANUAL_APPROVAL_WORKFLOW.md](docs/MANUAL_APPROVAL_WORKFLOW.md) for detailed workflow, database schema, MCP tools, and best practices.
+
+### Status API Target Fields
+
+`GET /status` includes both legacy and human-friendly target pointers:
+
+- `next_target`: cursor target (legacy behavior, may match the in-progress target while processing)
+- `next_target_after_current`: next target after the current in-progress target
+- `current_target_effective`: current target resolved from in-progress state first, then runtime fallback
 
 ### Simulator Settings
 
@@ -296,46 +350,54 @@ neuroshelf_v3/
    - Fetch current weather and forecast
    - Get competitor prices for this SKU
    - Check trending topics and upcoming events
+   - If `ENABLE_RAG_SIMILARITY=true`, retrieve similar historical cases (Chroma primary, Postgres fallback)
 
 2. **Market Analysis**
    - Identify demand patterns (growing/declining)
-   - Correlate external factors (hot weather → ice cream demand)
+   - Correlate external factors with demand shifts
    - Assess competitive positioning
    - Detect opportunities (excess inventory + demand spike)
 
-3. **Decision Point**
-   - Should we act? (If no opportunity, wait until next cycle)
-   - If yes, proceed to strategy design
+3. **Decision Learning Priors (Optional)**
+   - If `ENABLE_DECISION_LEARNING=true`, load or generate `decision_priors`
+   - Priors include historical success probability, ROI band, confidence, and risk flags
+   - If unavailable, flow falls back to legacy strategy logic
 
 4. **Pricing Strategy**
    - Calculate optimal price point
    - Ensure margin constraints are met
-   - Estimate demand elasticity
-   - Risk assessment
+   - Apply decision priors when available
 
 5. **Promotion Design**
-   - Define targeting: which store(s), which customers
-   - Time window: 1-2 hour flash sale vs all-day offer
-   - Delivery: push notification, in-app banner, email
-   - Create promotion record
+   - Define targeting and timing strategy
+   - Create initial promotion proposal
 
-6. **Execution**
+6. **Offer Optimization (Optional)**
+   - If `ENABLE_OPTIMIZATION_LOOP=true`, run bounded iterative optimization
+   - Evaluate objective per iteration and log each iteration to `optimization_iterations`
+   - Enforce min-margin and max-discount constraints
+
+7. **Multi-Critic Review (Optional)**
+   - If `ENABLE_MULTI_CRITIC=true`, run Profit Guardian, Growth Hacker, and Brand Guardian
+   - Arbitration result decides `approve`, `revise`, or `reject`
+   - `reject` ends the branch without execution; `revise` adjusts and continues
+
+8. **Execution**
    - **Auto Mode** (`require_manual_approval=False`):
      - Write promotion to database immediately
-     - Set valid_from, valid_until timestamps
-     - Trigger downstream systems (simulated)
-     - Log decision rationale to LangSmith
+     - Set validity timestamps
+     - Log decision rationale
    - **Manual Approval Mode** (`require_manual_approval=True`):
-     - Save promotion to `pending_promotions` table
-     - Include all parameters, reasoning, and market data
+     - Save promotion to `pending_promotions`
      - Wait for human review in Approval Queue UI
      - Only activate upon explicit approval
+     - If `ENABLE_APPROVAL_LEARNING=true`, approval/rejection signals are persisted in `approval_feedback`
 
-7. **Monitoring**
-   - Check sales velocity every 15 minutes
+9. **Monitoring**
+   - Check sales velocity
    - Compare actual vs expected performance
-   - If margin drops below threshold → auto-retract
-   - If successful → log to performance database for learning
+   - Auto-retract underperforming promotions
+   - Log outcomes for future learning
 
 ### Example Scenario
 
@@ -473,6 +535,7 @@ Future enhancements:
 
 ---
 
-**Version**: 1.0.0
-**Last Updated**: 2025-12-11
+**Version**: 1.1.0
+**Last Updated**: 2026-02-21
 **Status**: Production Ready
+

@@ -1,8 +1,10 @@
 import streamlit as st
 import sys
 sys.path.append('..')
-from app import get_db_connection
+from common import get_db_connection, render_sidebar
 import pandas as pd
+
+render_sidebar(show_navigation=False, key_prefix="promo_manager")
 
 st.title("🎯 Promotion Manager")
 st.markdown("---")
